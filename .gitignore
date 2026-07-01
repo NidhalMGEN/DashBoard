@@ -1,0 +1,38 @@
+# Runtime Python portable
+WinPython/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Données métier — confidentielles
+Input_Data/*.csv
+Input_Data/*.xlsx
+Input_Data/*.sql
+!Input_Data/.gitkeep
+
+# Output généré
+Output/*
+!Output/.gitkeep
+
+# Credentials et secrets
+.deps_installed
+*.env
+.env*
+config/credentials.ini
+
+# Fichiers générés
+*.log
+pipeline.log
+dist/
+build/
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/

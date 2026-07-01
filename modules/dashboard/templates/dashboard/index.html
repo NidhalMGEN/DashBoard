@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+{% block title %}Dashboard supervision{% endblock %}
+{% block topbar_actions %}
+  <a class="btn" id="btn-export-all" href="{{ url_for('dashboard.api_export_all') }}"
+     title="Exporter tous les KPI du dernier flux en Excel">⬇ Export Excel</a>
+
+  <!-- DATE PICKER -->
+  <input type="date" id="date-picker"
+         style="background:var(--bg-input);border:1px solid var(--border-active);
+                color:var(--text);border-radius:8px;padding:2px 5px;font-size:13px;cursor:pointer">
+  <button class="btn" id="btn-date-reset" style="display:none">↩ Dernier run</button>
+
+  <button class="btn" id="btn-refresh">🔄 Rafraîchir</button>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+  .kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+            padding:16px 18px;border-left:4px solid var(--skip);position:relative}
+  .kpi-card.green{border-left-color:var(--success)}
+  .kpi-card.orange{border-left-color:var(--warning)}
+  .kpi-card.red{border-left-color:var(--danger)}
+  .kpi-card.na{border-left-color:var(--text-dim);opacity:.7}
+  .kpi-card .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi-card .val{font-size:26px;font-weight:800;margin-top:6px}
+  .kpi-card .val .u{font-size:12px;font-weight:400;color:var(--text-dim)}
+  .kpi-card .dlt{font-size:11px;margin-top:4px;color:var(--text-dim)}
+  .kpi-card.drillable{cursor:pointer}
+  .kpi-card.drillable:hover{border-color:var(--mgen-green);transform:translateY(-1px)}
+  .drill-ico{font-size:10px;opacity:.5}
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center}
+  .modal{background:var(--bg-card);border:1px solid var(--border-active);border-radius:12px;
+         padding:22px;max-width:680px;width:92%;max-height:82vh;overflow:auto}
+  .modal h3{font-size:15px;color:var(--mgen-green);margin-bottom:12px}
+  .modal .x{float:right;cursor:pointer;color:var(--text-dim);font-size:18px}
+  .dlt.up{color:var(--success)} .dlt.down{color:var(--danger)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;position:absolute;top:16px;right:16px}
+  .dot.green{background:var(--success)} .dot.orange{background:var(--warning)}
+  .dot.red{background:var(--danger)} .dot.na{background:var(--text-dim)}
+  .chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px}
+  .chart-row-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:980px){.chart-row-2{grid-template-columns:1fr}}
+  .period-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .pbtn{font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;
+        border:1px solid var(--border-active);background:var(--bg-input);color:var(--text-muted);cursor:pointer}
+  .pbtn:hover{color:var(--mgen-green)}
+  .pbtn.active{background:var(--mgen-green-dk);border-color:var(--mgen-green);color:#fff}
+  .conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+  .conn-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;
+             border:1px solid var(--border);background:var(--bg-input)}
+  .conn-item .dotc{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .conn-item .dotc.ok{background:var(--success)}
+  .conn-item .dotc.ko{background:var(--danger)}
+  .conn-item .dotc.na{background:var(--text-dim)}
+  .conn-item .lab{font-size:13px;font-weight:600}
+  .conn-item .msg{font-size:11px;color:var(--text-dim);margin-top:2px;word-break:break-word}
+  .conn-item .state{margin-left:auto;font-size:11px;font-weight:700}
+  .conn-item .state.ok{color:var(--success)} .conn-item .state.ko{color:var(--danger)}
+  .conn-item .state.na{color:var(--text-dim)}
+  .meta-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;color:var(--text-muted)}
+  .meta-row b{color:var(--text)}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div id="degraded" class="alert alert-err" style="display:none"></div>
+
+  <div class="meta-row" id="meta-row"></div>
+
+  <div id="flags"></div>
+
+  <div class="chart-card" style="margin-bottom:18px">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <div class="section-title" style="margin:0">Alertes actives</div>
+      <span id="alerts-count" style="margin-left:auto;font-size:12px;color:var(--text-dim)"></span>
+    </div>
+    <div id="alerts-list"><div style="color:var(--text-dim)">Chargement…</div></div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:18px">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <div class="section-title" style="margin:0">Test de connexion aux bases</div>
+      <button class="pbtn" id="btn-conn-retest" style="margin-left:auto">↻ Re-tester</button>
+    </div>
+    <div id="conn-grid" class="conn-grid">
+      <div style="color:var(--text-dim)">Test des connexions en cours…</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid">
+    <div style="color:var(--text-dim)">Chargement des indicateurs…</div>
+  </div>
+
+  <div class="period-bar">
+    <span style="font-size:12px;color:var(--text-muted)">Période :</span>
+    <button class="pbtn" data-days="7">7 j</button>
+    <button class="pbtn" data-days="14">14 j</button>
+    <button class="pbtn active" data-days="30">30 j</button>
+    <button class="pbtn" data-days="90">90 j</button>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Tendances — taux clés (%)</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        Axe gauche 0–100 % · <span style="color:#06b6d4">TP GED</span> sur axe droit dédié</div>
+      <canvas id="chart-rates" height="150"></canvas>
+    </div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;margin-bottom:6px">
+        <div class="section-title" style="margin:0">Tendances — volumes</div>
+        <button class="pbtn" id="toggle-log" style="margin-left:auto">Échelle log</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        <span style="color:#ef4444">Non-rapprochés</span> sur axe droit dédié</div>
+      <canvas id="chart-vols" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Répartition TP GED (dernier flux)</div>
+      <canvas id="chart-donut" height="150"></canvas>
+      <div style="text-align:center;font-size:11px;color:var(--warning);margin-top:8px">
+        ⚠ Taux de rapprochement faible — validation métier requise</div>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Radar multi-KPI — jour vs moyenne période</div>
+      <canvas id="chart-radar" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Matching CIAM par méthode</div>
+      <canvas id="chart-method" height="150"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Matching CIAM par société</div>
+      <canvas id="chart-societe" height="150"></canvas>
+    </div>
+  </div>
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Éligibles TP par mois d'adhésion</div>
+      <canvas id="chart-tpmonth" height="150"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Décomposition de la qualité KO</div>
+      <canvas id="chart-qko" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="section-title">Comparaison de flux</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux A (référence)</div>
+        <select id="cmp-a" style="min-width:200px"></select></div>
+      <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux B (comparé)</div>
+        <select id="cmp-b" style="min-width:200px"></select></div>
+      <button class="btn btn-primary" id="cmp-go">Comparer</button>
+      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="cmp-changed" checked> écarts uniquement</label>
+    </div>
+    <div class="table-wrap" id="cmp-result"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="section-title">Historique des derniers runs (pipeline & SQL)</div>
+    <div class="table-wrap" id="runs-table">
+      <div style="color:var(--text-dim)">Chargement…</div>
+    </div>
+  </div>
+
+  <!-- Modale logs d'un run -->
+  <div class="modal-bg" id="logs-modal">
+    <div class="modal">
+      <span class="x" onclick="document.getElementById('logs-modal').style.display='none'">✕</span>
+      <h3 id="logs-title">Logs du run</h3>
+      <pre id="logs-body" style="background:#0e0e16;border:1px solid var(--border);border-radius:8px;
+        padding:12px;font-family:Consolas,monospace;font-size:12px;line-height:1.6;max-height:60vh;
+        overflow:auto;white-space:pre-wrap;color:#cbd5e1"></pre>
+    </div>
+  </div>
+
+  <!-- Modale drill-down KPI -->
+  <div class="modal-bg" id="drill-modal">
+    <div class="modal">
+      <span class="x" onclick="document.getElementById('drill-modal').style.display='none'">✕</span>
+      <h3 id="drill-title">Détail</h3>
+      <div id="drill-body"><div style="color:var(--text-dim)">Chargement…</div></div>
+      <div style="margin-top:14px">
+        <a class="btn btn-primary" id="drill-export" href="#">⬇ Exporter en Excel</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chartRates=null, chartVols=null, chartDonut=null, chartRadar=null;
+let curDays=30, logScale=false, lastModel=null;
+
+function fmt(v,unit){
+  if(v===null||v===undefined) return "—";
+  if(unit==="%") return Number(v).toFixed(2)+" %";
+  return Number(v).toLocaleString("fr-FR");
+}
+function deltaHtml(d,unit){
+  if(d===null||d===undefined||d===0) return "";
+  const up = d>0;
+  const cls = up?"up":"down";
+  const arrow = up?"▲":"▼";
+  const s = (up?"+":"")+ (unit==="%"? d.toFixed(2)+"%" : Number(d).toLocaleString("fr-FR"));
+  return `<div class="dlt ${cls}">${arrow} ${s} vs flux préc.</div>`;
+}
+
+function niceMax(arr,margin=0.1){
+  const vals=arr.filter(v=>typeof v==="number" && !isNaN(v));
+  if(!vals.length) return 100;
+  return Math.max(...vals)*(1+margin);
+}
+function niceMin(arr,margin=0.1){
+  const vals=arr.filter(v=>typeof v==="number" && !isNaN(v));
+  if(!vals.length) return 0;
+  return Math.max(0, Math.min(...vals)*(1-margin));
+}
+function kfmt(v){
+  if(v>=1000) return (v/1000).toFixed(v>=10000?0:1)+"k";
+  return v;
+}
+
+let selectedDate = null;   // null = mode "dernier run"
+
+async function load() {
+  let url;
+  if (selectedDate) {
+    url = "{{ url_for('dashboard.api_kpis_by_date') }}?date=" + selectedDate;
+  } else {
+    url = "{{ url_for('dashboard.api_kpis') }}?days=" + curDays;
+  }
+
+  const res = await fetch(url);
+  const m = await res.json();
+  lastModel = m;
+
+  const deg = document.getElementById("degraded");
+  if (!m.available) {
+    deg.style.display = "block";
+    deg.textContent = "⚠ Base de données inaccessible — état dégradé. (" + (m.error || "") + ")";
+    document.getElementById("kpi-grid").innerHTML =
+      '<div style="color:var(--text-dim)">Indicateurs indisponibles hors connexion BDD.</div>';
+    return;
+  }
+  deg.style.display = "none";
+
+  // Métadonnées
+  const fr = m.freshness_hours;
+  const dateLabel = selectedDate
+    ? `<span style="color:var(--mgen-green);font-weight:700">📅 KPI du ${new Date(selectedDate).toLocaleDateString("fr-FR")}</span>`
+    : "";
+  document.getElementById("meta-row").innerHTML =
+    dateLabel +
+    `<span>📦 <b>${m.nb_runs}</b> flux en base</span>` +
+    (m.last_run ? `<span>🕒 Dernier run : <b>${new Date(m.last_run.date_import).toLocaleString("fr-FR")}</b></span>` : "") +
+    (fr !== null ? `<span>⏱ Fraîcheur : <b>${fr} h</b></span>` : "");
+
+
+  // Flags
+  document.getElementById("flags").innerHTML = (m.flags||[]).map(f=>{
+    const cls = f.level==="err"?"alert-err":(f.level==="warn"?"alert-warn":"alert-info");
+    const doc = f.doc? ` <a href="#" style="text-decoration:underline">[règle métier]</a>`:"";
+    return `<div class="alert ${cls}">🚩 ${f.text}${doc}</div>`;
+  }).join("");
+
+  // Cards KPI
+  const attr=s=>String(s).replace(/"/g,"&quot;");
+  document.getElementById("kpi-grid").innerHTML = m.kpis.map(k=>`
+    <div class="kpi-card ${k.badge} ${k.drillable?'drillable':''}"
+         ${k.drillable?`data-key="${attr(k.key)}" data-label="${attr(k.label)}" title="Cliquer pour le détail"`:''}>
+      <span class="dot ${k.badge}"></span>
+      <div class="lbl">${k.label} ${k.drillable?'<span class="drill-ico">🔍</span>':''}</div>
+      <div class="val">${fmt(k.value,k.unit)} <span class="u">${k.unit}</span></div>
+      ${deltaHtml(k.delta,k.unit)}
+    </div>`).join("");
+
+  renderCharts(m);
+}
+
+function renderCharts(m){
+  const t=m.trends, L=t.labels, S=t.series;
+  const line=(key,color,axis)=>({label:key,data:S[key],borderColor:color,
+    backgroundColor:color+"22",tension:.3,spanGaps:true,fill:false,pointRadius:2,yAxisID:axis});
+
+  // ── Graphe 1 : taux clés — double axe Y (TP GED à droite) ──
+  const leftKeys=["taux_matching_ciam","taux_presence_iehe","taux_eligibilite_tp","score_qualite"];
+  const leftVals=leftKeys.flatMap(k=>S[k]||[]);
+  const gedVals=S["taux_ged"]||[];
+  if(chartRates) chartRates.destroy();
+  chartRates=new Chart(document.getElementById("chart-rates"),{
+    type:"line",
+    data:{labels:L,datasets:[
+      {...line("taux_matching_ciam","#6ab023","y"),label:"Matching CIAM"},
+      {...line("taux_presence_iehe","#3b82f6","y"),label:"Présence IEHE"},
+      {...line("taux_eligibilite_tp","#f59e0b","y"),label:"Éligibilité TP"},
+      {...line("score_qualite","#a855f7","y"),label:"Qualité données"},
+      {...line("taux_ged","#06b6d4","y1"),label:"TP GED (axe droit)"},
+    ]},
+    options:{responsive:true,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:"#666680"}},
+        y:{position:"left",suggestedMin:niceMin(leftVals),suggestedMax:Math.min(100,niceMax(leftVals)),
+           ticks:{color:"#666680",callback:v=>v+"%"},title:{display:true,text:"Taux principaux",color:"#666680"}},
+        y1:{position:"right",suggestedMin:0,suggestedMax:Math.max(5,niceMax(gedVals)),grid:{drawOnChartArea:false},
+           ticks:{color:"#06b6d4",callback:v=>v+"%"},title:{display:true,text:"TP GED",color:"#06b6d4"}},
+      }}
+  });
+
+  // ── Graphe 2 : volumes — axe gauche (log togglable) + non-rap. à droite ──
+  buildVols(S,L);
+
+  // ── Donut TP GED ──
+  const dg=m.donut_ged||{};
+  const found=dg.found||0, ko=dg.ko||0;
+  if(chartDonut) chartDonut.destroy();
+  chartDonut=new Chart(document.getElementById("chart-donut"),{
+    type:"doughnut",
+    data:{labels:["Rapprochés","Non rapprochés"],datasets:[{data:[found,ko],
+      backgroundColor:["#6ab023","#ef4444"],borderColor:"#1a1a24",borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}},
+      tooltip:{callbacks:{label:c=>c.label+" : "+c.parsed.toLocaleString("fr-FR")}}}}
+  });
+
+  // ── Radar jour vs moyenne ──
+  const rd=m.radar||{axes:[],today:[],avg:[]};
+  if(chartRadar) chartRadar.destroy();
+  chartRadar=new Chart(document.getElementById("chart-radar"),{
+    type:"radar",
+    data:{labels:rd.axes,datasets:[
+      {label:"Aujourd'hui",data:rd.today,borderColor:"#6ab023",backgroundColor:"rgba(106,176,35,.2)",pointBackgroundColor:"#6ab023"},
+      {label:"Moyenne période",data:rd.avg,borderColor:"#60a5fa",borderDash:[5,4],backgroundColor:"rgba(96,165,250,.08)",pointBackgroundColor:"#60a5fa"},
+    ]},
+    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{r:{min:0,max:100,ticks:{stepSize:20,color:"#666680",backdropColor:"transparent"},
+        grid:{color:"#2a2a38"},angleLines:{color:"#2a2a38"},pointLabels:{color:"#a0a0b0",font:{size:10}}}}}
+  });
+}
+
+function buildVols(S,L){
+  const line=(key,color,axis)=>({label:key,data:S[key],borderColor:color,
+    backgroundColor:color+"22",tension:.3,spanGaps:true,fill:false,pointRadius:2,yAxisID:axis});
+  const bigVals=[...(S["volume_flux"]||[]),...(S["eligibles_tp"]||[])];
+  if(chartVols) chartVols.destroy();
+  chartVols=new Chart(document.getElementById("chart-vols"),{
+    type:"line",
+    data:{labels:L,datasets:[
+      {...line("volume_flux","#3b82f6","y"),label:"Volume flux"},
+      {...line("eligibles_tp","#6ab023","y"),label:"Éligibles TP"},
+      {...line("non_rapproches","#ef4444","y1"),label:"Non-rapprochés (axe droit)"},
+    ]},
+    options:{responsive:true,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:"#666680"}},
+        y:logScale
+          ? {position:"left",type:"logarithmic",ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Volumes (log)",color:"#666680"}}
+          : {position:"left",suggestedMin:0,suggestedMax:niceMax(bigVals),ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Volumes",color:"#666680"}},
+        y1:{position:"right",suggestedMin:0,suggestedMax:Math.max(500,niceMax(S["non_rapproches"]||[])),
+            grid:{drawOnChartArea:false},ticks:{color:"#ef4444"},title:{display:true,text:"Non-rap.",color:"#ef4444"}},
+      }}
+  });
+}
+
+// Sélecteur de période
+document.querySelectorAll(".pbtn[data-days]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".pbtn[data-days]").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");curDays=parseInt(b.dataset.days);load();
+}));
+// Toggle log/linéaire (sans rechargement réseau)
+document.getElementById("toggle-log").addEventListener("click",function(){
+  logScale=!logScale;
+  this.textContent=logScale?"Échelle linéaire":"Échelle log";
+  this.classList.toggle("active",logScale);
+  if(lastModel) buildVols(lastModel.trends.series,lastModel.trends.labels);
+});
+
+// ── Test de connexion aux bases (au lancement) ──
+async function loadConnections(){
+  const grid=document.getElementById("conn-grid");
+  grid.innerHTML='<div style="color:var(--text-dim)">Test des connexions en cours…</div>';
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_connections') }}");
+    const j=await r.json();
+    grid.innerHTML=j.results.map(c=>{
+      const cls=!c.configured?"na":(c.ok?"ok":"ko");
+      const state=!c.configured?"NON CONFIG.":(c.ok?"✓ OK":"✗ KO");
+      return `<div class="conn-item">
+        <span class="dotc ${cls}"></span>
+        <div style="min-width:0">
+          <div class="lab">${c.label}</div>
+          ${c.ok?"":`<div class="msg">${(c.msg||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</div>`}
+        </div>
+        <span class="state ${cls}">${state}</span>
+      </div>`;
+    }).join("");
+  }catch(e){
+    grid.innerHTML='<div class="alert alert-err">Impossible de tester les connexions.</div>';
+  }
+}
+document.getElementById("btn-conn-retest").addEventListener("click",loadConnections);
+
+// ── Historique des runs ──
+async function loadRuns(){
+  const box=document.getElementById("runs-table");
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_runs') }}");
+    const j=await r.json();
+    if(!j.runs.length){box.innerHTML='<div style="color:var(--text-dim)">Aucun run enregistré.</div>';return;}
+    const kindLabel=k=>({pipeline:'⚙️ Pipeline',sql:'🗄️ SQL',report:'📄 Rapport',
+      scheduled_pipeline:'⏰ Pipeline planifié',scheduled_sql:'⏰ SQL planifié'}[k]||k);
+    box.innerHTML=`<table><thead><tr>
+      <th>Type</th><th>Démarré</th><th>Durée</th><th>Statut</th><th>Détail</th><th>Utilisateur</th><th>Logs</th>
+      </tr></thead><tbody>`+
+      j.runs.map(x=>{
+        const ok=x.success;
+        const badge=`<span style="color:${ok?'var(--success)':'var(--danger)'};font-weight:700">${ok?'✓ OK':'✗ Échec'}</span>`;
+        const d=new Date(x.ts_start).toLocaleString('fr-FR');
+        const logs=x.has_logs?`<a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs('${x.id}')">voir</a>`:'—';
+        return `<tr><td>${kindLabel(x.kind)}</td><td>${d}</td><td>${x.duration_s||0}s</td>
+          <td>${badge}</td><td>${(x.summary||'').replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</td>
+          <td style="color:var(--text-dim)">${x.user||''}</td><td>${logs}</td></tr>`;
+      }).join("")+`</tbody></table>`;
+  }catch(e){box.innerHTML='<div class="alert alert-err">Historique indisponible.</div>';}
+}
+
+// ── Centre d'alertes ──
+async function loadAlerts(){
+  const box=document.getElementById("alerts-list"), cnt=document.getElementById("alerts-count");
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_alerts') }}");
+    const j=await r.json();
+    cnt.textContent=j.count+" alerte(s)";
+    if(!j.alerts.length){box.innerHTML='<div class="alert alert-ok">✓ Aucune alerte — indicateurs dans les normes.</div>';return;}
+    box.innerHTML=j.alerts.map(a=>{
+      const cls=a.level==="err"?"alert-err":(a.level==="warn"?"alert-warn":"alert-info");
+      return `<div class="alert ${cls}"><b>${a.title}</b> — ${(a.detail||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</div>`;
+    }).join("");
+  }catch(e){box.innerHTML='<div class="alert alert-err">Centre d\'alertes indisponible.</div>';}
+}
+
+// ── Enrichissement : graphiques de détail du flux (#5) ──
+let chMethod,chSociete,chTpMonth,chQko;
+async function loadDetails(){
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_details') }}");
+    const d=await r.json();
+    if(!d.available) return;
+    const axOpt=(suff="")=>({responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{x:{ticks:{color:"#666680"}},y:{ticks:{color:"#666680"}}}});
+    if(chMethod)chMethod.destroy();
+    chMethod=new Chart(document.getElementById("chart-method"),{type:"doughnut",
+      data:{labels:d.by_method.labels,datasets:[{data:d.by_method.data,
+        backgroundColor:["#6ab023","#3b82f6","#f59e0b","#a855f7","#06b6d4","#ef4444","#84cc16"],
+        borderColor:"#1a1a24",borderWidth:2}]},
+      options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:10}}}}}});
+    if(chSociete)chSociete.destroy();
+    chSociete=new Chart(document.getElementById("chart-societe"),{type:"bar",
+      data:{labels:d.by_societe.labels,datasets:[
+        {label:"Rapprochés",data:d.by_societe.rapproches,backgroundColor:"#6ab023aa"},
+        {label:"Non-rapprochés",data:d.by_societe.non_rap,backgroundColor:"#ef4444aa"}]},
+      options:axOpt()});
+    if(chTpMonth)chTpMonth.destroy();
+    chTpMonth=new Chart(document.getElementById("chart-tpmonth"),{type:"bar",
+      data:{labels:d.tp_by_month.labels,datasets:[{label:"Éligibles TP",data:d.tp_by_month.data,
+        backgroundColor:"#3b82f6aa"}]},options:axOpt()});
+    if(chQko)chQko.destroy();
+    chQko=new Chart(document.getElementById("chart-qko"),{type:"bar",
+      data:{labels:d.quality_ko.labels,datasets:[{label:"Comptes KO",data:d.quality_ko.data,
+        backgroundColor:"#f59e0baa"}]},
+      options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:"#666680"}},y:{ticks:{color:"#a0a0b0",font:{size:10}}}}}});
+  }catch(e){}
+}
+
+// ── Drill-down par KPI (#6) ──
+async function openDrill(key,label){
+  const modal=document.getElementById("drill-modal");
+  document.getElementById("drill-title").textContent="Détail — "+label;
+  document.getElementById("drill-body").innerHTML='<div style="color:var(--text-dim)">Chargement…</div>';
+  document.getElementById("drill-export").href="{{ url_for('dashboard.api_kpi_detail_export') }}?key="+encodeURIComponent(key);
+  modal.style.display="flex";
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_kpi_detail') }}?key="+encodeURIComponent(key));
+    const d=await r.json();
+    const body=document.getElementById("drill-body");
+    if(!d.available){body.innerHTML=`<div class="alert alert-warn">${d.reason||"Aucun détail."}</div>`;return;}
+    const esc=s=>String(s==null?"—":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    body.innerHTML=`<table><thead><tr>${d.columns.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead>`+
+      `<tbody>${d.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  }catch(e){document.getElementById("drill-body").innerHTML='<div class="alert alert-err">Détail indisponible.</div>';}
+}
+document.getElementById("drill-modal").addEventListener("click",e=>{
+  if(e.target.id==="drill-modal") e.target.style.display="none";});
+// Délégation d'événements : un seul écouteur sur la grille (pas d'onclick inline).
+document.getElementById("kpi-grid").addEventListener("click",e=>{
+  const card=e.target.closest(".kpi-card.drillable");
+  if(card) openDrill(card.dataset.key, card.dataset.label);
+});
+
+// ── Logs d'un run (#2) ──
+async function showLogs(id){
+  const modal=document.getElementById("logs-modal");
+  document.getElementById("logs-body").textContent="Chargement…";
+  modal.style.display="flex";
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_run_logs') }}?id="+encodeURIComponent(id));
+    if(!r.ok) throw new Error();
+    const j=await r.json();
+    document.getElementById("logs-title").textContent="Logs — "+(j.summary||id);
+    document.getElementById("logs-body").textContent=(j.logs||[]).join("\n")||"(aucun log)";
+  }catch(e){document.getElementById("logs-body").textContent="Logs indisponibles.";}
+}
+document.getElementById("logs-modal").addEventListener("click",e=>{
+  if(e.target.id==="logs-modal") e.target.style.display="none";});
+
+// ── Comparaison de flux (#1) ──
+async function loadFluxList(){
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_flux_list') }}");
+    const j=await r.json();
+    if(!j.available||!j.flux.length) return;
+    const opt=f=>`<option value="${f.flux_id}">Flux ${f.flux_id} — ${new Date(f.date_import).toLocaleDateString('fr-FR')}</option>`;
+    document.getElementById("cmp-a").innerHTML=j.flux.map(opt).join("");
+    document.getElementById("cmp-b").innerHTML=j.flux.map(opt).join("");
+    if(j.flux.length>1){document.getElementById("cmp-a").selectedIndex=1;document.getElementById("cmp-b").selectedIndex=0;}
+  }catch(e){}
+}
+document.getElementById("cmp-go").addEventListener("click",async()=>{
+  const a=document.getElementById("cmp-a").value,b=document.getElementById("cmp-b").value;
+  const box=document.getElementById("cmp-result");
+  box.innerHTML='<div style="color:var(--text-dim)">Comparaison…</div>';
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_compare') }}?a="+encodeURIComponent(a)+"&b="+encodeURIComponent(b));
+    if(!r.ok) throw new Error();
+    const j=await r.json();
+    if(!j.available){box.innerHTML=`<div class="alert alert-warn">${j.reason||"Indisponible"}</div>`;return;}
+    const onlyChanged=document.getElementById("cmp-changed").checked;
+    const esc=s=>String(s==null?"—":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    const rows=j.rows.filter(r=>!onlyChanged||r.changed);
+    if(!rows.length){box.innerHTML='<div class="alert alert-ok">Aucun écart entre ces deux flux.</div>';return;}
+    box.innerHTML=`<table><thead><tr><th>Indicateur</th><th style="text-align:right">Flux A</th>
+      <th style="text-align:right">Flux B</th><th style="text-align:right">Δ</th></tr></thead><tbody>`+
+      rows.map(r=>{
+        let d="—";
+        if(r.delta!==null&&r.delta!==undefined&&r.delta!==0){
+          const up=r.delta>0;d=`<span style="color:${up?'#6ab023':'#ef4444'}">${up?'▲ +':'▼ '}${r.delta}</span>`;
+        }
+        return `<tr><td style="text-align:left">${esc(r.path)}</td>
+          <td style="text-align:right">${esc(r.a)}</td><td style="text-align:right">${esc(r.b)}</td>
+          <td style="text-align:right">${d}</td></tr>`;
+      }).join("")+`</tbody></table>`;
+  }catch(e){box.innerHTML='<div class="alert alert-err">Erreur lors de la comparaison des flux.</div>';}
+});
+
+document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();});
+load();
+loadConnections();
+loadRuns();
+loadAlerts();
+loadDetails();
+loadFluxList();
+// Date picker
+document.getElementById("date-picker").addEventListener("change", function () {
+  selectedDate = this.value || null;
+  document.getElementById("btn-date-reset").style.display = selectedDate ? "inline-flex" : "none";
+  load();
+});
+
+document.getElementById("btn-date-reset").addEventListener("click", function () {
+  selectedDate = null;
+  document.getElementById("date-picker").value = "";
+  this.style.display = "none";
+  load();
+});
+
+// Optionnel : griser les dates sans données
+fetch("{{ url_for('dashboard.api_available_dates') }}")
+  .then(r => r.json())
+  .then(d => {
+    if (d.dates && d.dates.length) {
+      // Le input type=date natif ne supporte pas les dates désactivées individuellement,
+      // mais on peut borner le min/max
+      const sorted = d.dates.slice().sort();
+      document.getElementById("date-picker").min = sorted[0];
+      document.getElementById("date-picker").max = sorted[sorted.length - 1];
+    }
+  })
+  .catch(() => {});
+</script>
+{% endblock %}

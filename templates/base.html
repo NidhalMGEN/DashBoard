@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_title }}{% endblock %}</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --mgen-green:#6ab023; --mgen-green-dk:#4d8019; --mgen-green-lt:#f0f7e6;
+      --bg:#111118; --bg-card:#1a1a24; --bg-sidebar:#16161f; --bg-input:#2a2a38;
+      --bg-topbar:#13131c; --border:#2a2a38; --border-active:#3a3a50;
+      --text:#f0f0f0; --text-muted:#a0a0b0; --text-dim:#666680;
+      --success:#6ab023; --warning:#f59e0b; --danger:#ef4444; --info:#60a5fa;
+      --running:#3b82f6; --skip:#6b7280;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);
+         color:var(--text);font-size:14px;display:flex;min-height:100vh}
+    a{color:inherit;text-decoration:none}
+    /* Sidebar */
+    .sidebar{width:240px;background:var(--bg-sidebar);border-right:1px solid var(--border);
+             display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50}
+    .sidebar-brand{display:flex;align-items:center;gap:10px;padding:18px 20px;
+                   border-bottom:1px solid var(--border)}
+    .sidebar-brand .logo{width:34px;height:34px;border-radius:8px;
+        background:linear-gradient(135deg,var(--mgen-green-dk),var(--mgen-green));
+        display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px}
+    .sidebar-brand h1{font-size:15px;font-weight:700}
+    .sidebar-brand p{font-size:10px;color:var(--text-dim)}
+    .nav{flex:1;padding:12px 0;overflow-y:auto}
+    .nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;
+              color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;
+              border-left:3px solid transparent;transition:all .15s}
+    .nav-item:hover{background:#1e2030;color:var(--text)}
+    .nav-item.active{background:#1e2030;color:var(--mgen-green);border-left-color:var(--mgen-green)}
+    .nav-item .ico{font-size:16px;width:20px;text-align:center}
+    .nav-item .code{font-size:10px;color:var(--text-dim);margin-left:auto}
+    .nav-footer{padding:14px 20px;border-top:1px solid var(--border);
+                font-size:10px;color:var(--text-dim)}
+    /* Main */
+    .main{flex:1;margin-left:240px;display:flex;flex-direction:column;min-width:0}
+    .topbar{height:54px;background:var(--bg-topbar);border-bottom:1px solid var(--border);
+            display:flex;align-items:center;gap:16px;padding:0 24px;position:sticky;top:0;z-index:40}
+    .topbar h2{font-size:15px;font-weight:700}
+    .topbar .spacer{flex:1}
+    .badge-env{font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;
+               background:rgba(106,176,35,.15);color:var(--mgen-green);border:1px solid rgba(106,176,35,.3)}
+    .notif-wrap{position:relative}
+    .alert-bell{font-size:13px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
+                background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);cursor:pointer}
+    .alert-bell .alert-count{font-size:11px;font-weight:800;color:var(--danger)}
+    .alert-bell.warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3)}
+    .alert-bell.warn .alert-count{color:var(--warning)}
+    .notif-panel{display:none;position:absolute;right:0;top:34px;width:340px;max-height:60vh;overflow:auto;
+                 background:var(--bg-card);border:1px solid var(--border-active);border-radius:10px;
+                 box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:200}
+    .notif-panel.open{display:block}
+    .notif-head{font-size:12px;font-weight:700;color:var(--text);padding:12px 14px;border-bottom:1px solid var(--border)}
+    .notif-foot{display:block;padding:10px 14px;font-size:12px;color:var(--info);border-top:1px solid var(--border)}
+    .notif-item{padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px}
+    .notif-item .t{font-weight:700}
+    .notif-item.err{border-left:3px solid var(--danger)}
+    .notif-item.warn{border-left:3px solid var(--warning)}
+    .notif-item.info{border-left:3px solid var(--info)}
+    .badge-cred{font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;cursor:pointer}
+    .badge-cred.ok{background:rgba(106,176,35,.15);color:var(--success);border:1px solid rgba(106,176,35,.3)}
+    .badge-cred.warn{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.3)}
+    .content{flex:1;padding:24px;overflow-y:auto}
+    /* Composants partagés */
+    .btn{font:inherit;font-weight:600;font-size:13px;padding:9px 16px;border-radius:8px;
+         border:1px solid var(--border-active);background:var(--bg-input);color:var(--text);
+         cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px}
+    .btn:hover{border-color:var(--mgen-green);color:var(--mgen-green)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:var(--mgen-green-dk);border-color:var(--mgen-green);color:#fff}
+    .btn-primary:hover{background:var(--mgen-green);color:#fff}
+    .btn-danger{border-color:var(--danger);color:var(--danger)}
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px}
+    .section-title{font-size:13px;font-weight:700;color:var(--mgen-green);
+                   text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;
+                   border-left:3px solid var(--mgen-green);padding-left:10px}
+    input[type=text],input[type=password],input[type=date],select{
+      font:inherit;background:var(--bg-input);border:1px solid var(--border-active);
+      color:var(--text);border-radius:8px;padding:8px 12px;width:100%}
+    input:focus,select:focus{outline:none;border-color:var(--mgen-green)}
+    .alert{border-radius:8px;padding:10px 14px;font-size:13px;margin:8px 0}
+    .alert-ok{background:rgba(106,176,35,.1);border-left:3px solid var(--success);color:#bfe89a}
+    .alert-warn{background:rgba(245,158,11,.1);border-left:3px solid var(--warning);color:#fcd9a0}
+    .alert-err{background:rgba(239,68,68,.1);border-left:3px solid var(--danger);color:#f5b5b5}
+    .alert-info{background:rgba(96,165,250,.1);border-left:3px solid var(--info);color:#bcd7fb}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:8px 12px;color:var(--text-muted);font-size:11px;
+       text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
+    td{padding:8px 12px;border-bottom:1px solid var(--border)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .pulse{animation:pulse 1.2s infinite}
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">PSC</div>
+      <div>
+        <h1>{{ app_title }}</h1>
+        <p>Supervision MGEN</p>
+      </div>
+    </div>
+    <nav class="nav">
+      {% for m in nav_modules %}
+        <a class="nav-item {% if m.key == active_module %}active{% endif %}"
+           href="{{ url_for(m.key ~ '.index') }}">
+          <span class="ico">{{ m.icon }}</span>
+          <span>{{ m.label }}</span>
+          <span class="code">{{ m.code }}</span>
+        </a>
+      {% endfor %}
+    </nav>
+    <div class="nav-footer">KPI_MGEN V3 · plateforme modulaire</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <h2>{% block topbar_title %}{{ self.title() }}{% endblock %}</h2>
+      <div class="spacer"></div>
+      <div class="notif-wrap">
+        <div class="alert-bell" id="alert-bell" title="Notifications" style="display:none" onclick="toggleNotif()">
+          🔔 <span class="alert-count" id="alert-count">0</span>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-head">Notifications</div>
+          <div id="notif-list"></div>
+          <a class="notif-foot" href="{{ url_for('dashboard.index') }}">Voir le dashboard →</a>
+        </div>
+      </div>
+      {% block topbar_actions %}{% endblock %}
+      {% if cred_status.file_present and cred_status.sections_complete > 0 %}
+        <span class="badge-cred ok" title="{{ cred_status.sections_complete }}/{{ cred_status.sections_total }} sections renseignées"
+              onclick="reloadCreds()">✓ Credentials chargés</span>
+      {% elif cred_status.file_present %}
+        <span class="badge-cred warn" title="Aucune section complète"
+              onclick="reloadCreds()">⚠ Credentials à compléter</span>
+      {% else %}
+        <span class="badge-cred warn" title="Copier config/credentials.ini.example en config/credentials.ini"
+              onclick="reloadCreds()">⚠ credentials.ini manquant</span>
+      {% endif %}
+      <span class="badge-env" id="env-badge">PROD</span>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script>
+    // Centre de notifications in-app (toutes les pages).
+    function toggleNotif(){ document.getElementById("notif-panel").classList.toggle("open"); }
+    document.addEventListener("click",function(e){
+      const w=e.target.closest(".notif-wrap");
+      if(!w) document.getElementById("notif-panel").classList.remove("open");
+    });
+    (async function pollAlerts(){
+      try{
+        const r=await fetch("/dashboard/api/alerts");
+        const j=await r.json();
+        const bell=document.getElementById("alert-bell");
+        const esc=s=>String(s==null?"":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+        document.getElementById("notif-list").innerHTML=(j.alerts||[]).length
+          ? j.alerts.map(a=>`<div class="notif-item ${a.level}"><div class="t">${esc(a.title)}</div>${esc(a.detail)}</div>`).join("")
+          : '<div class="notif-item info">Aucune notification.</div>';
+        if(j.count>0){
+          document.getElementById("alert-count").textContent=j.count;
+          const hasErr=(j.alerts||[]).some(a=>a.level==="err");
+          bell.classList.toggle("warn",!hasErr);
+          bell.style.display="flex";
+        } else { bell.style.display="none"; }
+      }catch(e){}
+    })();
+    async function reloadCreds(){
+      const r = await fetch("/admin/reload-credentials", {method:"POST"});
+      const j = await r.json();
+      const s = j.status||{};
+      alert(s.file_present
+        ? `credentials.ini rechargé : ${s.sections_complete}/${s.sections_total} section(s) renseignée(s).`
+        : "config/credentials.ini introuvable. Copiez config/credentials.ini.example en config/credentials.ini.");
+      location.reload();
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

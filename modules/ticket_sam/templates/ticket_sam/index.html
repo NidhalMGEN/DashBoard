@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% block title %}Analyse Tickets S@M — {{ app_title }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ── Upload zone ── */
+  .drop-zone{border:2px dashed var(--border-active);border-radius:12px;padding:40px 24px;
+             text-align:center;cursor:pointer;transition:all .2s;background:var(--bg-card)}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--mgen-green);background:rgba(106,176,35,.05)}
+  .drop-zone .ico{font-size:36px;margin-bottom:10px}
+  .drop-zone p{color:var(--text-muted);font-size:13px}
+  .drop-zone .file-name{margin-top:10px;color:var(--mgen-green);font-weight:700;font-size:14px}
+
+  /* ── Steps toolbar ── */
+  .steps{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}
+  .step-arrow{color:var(--text-dim);font-size:16px}
+
+  /* ── KPI cards ── */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+  .kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;
+            padding:16px;text-align:center}
+  .kpi-card .val{font-size:28px;font-weight:800;color:var(--mgen-green)}
+  .kpi-card .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;
+                  letter-spacing:.4px;margin-top:4px}
+  .kpi-card.warn .val{color:var(--warning)}
+  .kpi-card.danger .val{color:var(--danger)}
+
+  /* ── Two-col layout ── */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+
+  /* ── Chart containers ── */
+  .chart-wrap{position:relative;height:220px}
+
+  /* ── Table inside card ── */
+  .mini-table{width:100%;border-collapse:collapse;font-size:12px}
+  .mini-table th{color:var(--text-dim);padding:4px 8px;text-align:left;
+                  border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
+  .mini-table td{padding:5px 8px;border-bottom:1px solid var(--border)}
+  .mini-table tr:last-child td{border-bottom:none}
+  .bar-bg{background:var(--bg-input);border-radius:3px;height:6px;margin-top:4px}
+  .bar-fill{background:var(--mgen-green);border-radius:3px;height:6px}
+
+  /* ── Prompt zone ── */
+  .prompt-box{font-family:"Courier New",monospace;font-size:12px;line-height:1.6;
+              background:#0a0a12;border:1px solid var(--border-active);border-radius:8px;
+              padding:16px;resize:vertical;width:100%;min-height:300px;
+              color:#d0d0d0;white-space:pre-wrap}
+  .copy-btn-wrap{display:flex;justify-content:flex-end;margin-top:8px;gap:8px}
+
+  /* ── Spinner ── */
+  .spinner{width:24px;height:24px;border:3px solid var(--border-active);
+           border-top-color:var(--mgen-green);border-radius:50%;
+           animation:spin .7s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Anon stats badge ── */
+  .anon-badge{display:inline-flex;gap:16px;background:rgba(106,176,35,.08);
+              border:1px solid rgba(106,176,35,.25);border-radius:8px;
+              padding:10px 16px;flex-wrap:wrap;margin-top:8px}
+  .anon-badge span{font-size:12px;color:var(--text-muted)}
+  .anon-badge b{color:var(--mgen-green)}
+
+  /* ── Section titles with count ── */
+  .section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .section-hd .section-title{margin-bottom:0}
+  .count-badge{font-size:11px;color:var(--text-dim);background:var(--bg-input);
+               padding:2px 8px;border-radius:10px}
+  #kpi-section{display:none}
+</style>
+{% endblock %}
+
+{% block topbar_title %}Analyse Tickets S@M{% endblock %}
+
+{% block topbar_actions %}
+  <button class="btn btn-primary" id="btn-process" style="display:none" onclick="processFile()">
+    Anonymiser &amp; Analyser
+  </button>
+  <button class="btn" id="btn-download" style="display:none" onclick="downloadAnon()">
+    Télécharger anonymisé
+  </button>
+  <button class="btn" id="btn-prompt" style="display:none" onclick="scrollToPrompt()">
+    Prompt IA
+  </button>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:1400px;margin:0 auto">
+
+  <!-- ── Étape 1 : Upload ── -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-title">Chargement du fichier tickets</div>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div class="ico">📂</div>
+      <p>Glisser-déposer un fichier <strong>.xlsx</strong> ou cliquer pour choisir</p>
+      <div class="file-name" id="file-name" style="display:none"></div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="uploadFile(this.files[0])">
+
+    <div id="upload-status" style="margin-top:10px"></div>
+
+    <!-- Feuilles détectées -->
+    <div id="sheet-summary" style="display:none;margin-top:14px">
+      <div class="section-title" style="margin-bottom:8px">Feuilles détectées</div>
+      <div id="sheet-list" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      <div class="steps" style="margin-top:16px">
+        <button class="btn btn-primary" id="btn-process-inline" onclick="processFile()">
+          Anonymiser &amp; Analyser
+        </button>
+        <span class="step-arrow">→</span>
+        <span style="font-size:12px;color:var(--text-muted)">
+          Anonymisation RGPD + calcul KPIs + génération du prompt IA
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Spinner traitement ── -->
+  <div id="processing-banner" style="display:none" class="alert alert-info" style="margin-bottom:16px">
+    <span class="spinner" style="vertical-align:middle;margin-right:10px"></span>
+    Anonymisation et calcul des KPIs en cours&hellip; (peut prendre quelques secondes)
+  </div>
+
+  <!-- ── Section KPIs ── -->
+  <div id="kpi-section">
+
+    <!-- Bandeau anonymisation -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:22px">🔒</span>
+        <div>
+          <div style="font-weight:700;color:var(--mgen-green)">Fichier anonymisé — RGPD OK</div>
+          <div id="anon-stats-wrap"></div>
+        </div>
+        <button class="btn" style="margin-left:auto" id="btn-dl-main" onclick="downloadAnon()">
+          Télécharger le fichier anonymisé
+        </button>
+      </div>
+    </div>
+
+    <!-- ── KPI cards résumé ── -->
+    <div class="kpi-grid" id="kpi-cards"></div>
+
+    <!-- ── Charts row 1 : statut + priorité ── -->
+    <div class="two-col">
+      <div class="card">
+        <div class="section-title">Répartition par statut</div>
+        <div class="chart-wrap"><canvas id="chart-statut"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Répartition par priorité</div>
+        <div class="chart-wrap"><canvas id="chart-priorite"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── Charts row 2 : évolution ── -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Évolution mensuelle des tickets</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="chart-evolution"></canvas></div>
+    </div>
+
+    <!-- ── Temps résolution par priorité ── -->
+    <div class="card" style="margin-bottom:16px" id="sla-card">
+      <div class="section-title">Délais de résolution par priorité vs SLA cible</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="chart-sla"></canvas></div>
+    </div>
+
+    <!-- ── Tables thème + région ── -->
+    <div class="two-col">
+      <div class="card">
+        <div class="section-hd">
+          <div class="section-title">Top thèmes fonctionnels</div>
+          <span class="count-badge" id="theme-count"></span>
+        </div>
+        <div id="table-theme"></div>
+      </div>
+      <div class="card">
+        <div class="section-hd">
+          <div class="section-title">Répartition par région</div>
+          <span class="count-badge" id="region-count"></span>
+        </div>
+        <div id="table-region"></div>
+      </div>
+    </div>
+
+    <!-- ── Tables intervenants + origine ── -->
+    <div class="two-col" style="margin-top:16px">
+      <div class="card">
+        <div class="section-hd">
+          <div class="section-title">Charge par intervenant (anonymisé)</div>
+        </div>
+        <div id="table-intervenant"></div>
+      </div>
+      <div class="card">
+        <div class="section-hd">
+          <div class="section-title">Répartition par origine</div>
+        </div>
+        <div id="table-origine"></div>
+      </div>
+    </div>
+
+    <!-- ── Historique Legacy ── -->
+    <div class="card" style="margin-top:16px" id="legacy-card">
+      <div class="section-title">Historique clôturé (Legacy)</div>
+      <div id="legacy-content"></div>
+    </div>
+
+    <!-- ── Prompt IA ── -->
+    <div class="card" style="margin-top:16px" id="prompt-section">
+      <div class="section-hd">
+        <div class="section-title">Prompt IA — Analyse approfondie</div>
+        <span style="font-size:12px;color:var(--text-muted)">
+          Copiez ce prompt dans ChatGPT, Claude, Gemini&hellip;
+        </span>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+        Ce prompt contient uniquement des données anonymisées. Aucune donnée personnelle
+        ne sera transmise à l'IA.
+      </p>
+      <textarea class="prompt-box" id="prompt-text" readonly></textarea>
+      <div class="copy-btn-wrap">
+        <span id="copy-feedback" style="font-size:12px;color:var(--mgen-green);display:none">
+          Copié !
+        </span>
+        <button class="btn btn-primary" onclick="copyPrompt()">Copier le prompt</button>
+      </div>
+    </div>
+
+  </div><!-- /kpi-section -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Constantes ──────────────────────────────────────────────────────────────
+const PRIO_COLORS = ["#ef4444","#f59e0b","#60a5fa","#6ab023","#a0a0b0"];
+
+// ── Drag & drop ─────────────────────────────────────────────────────────────
+function onDragOver(e){e.preventDefault();document.getElementById("drop-zone").classList.add("drag-over")}
+function onDragLeave(){document.getElementById("drop-zone").classList.remove("drag-over")}
+function onDrop(e){
+  e.preventDefault();
+  document.getElementById("drop-zone").classList.remove("drag-over");
+  const f=e.dataTransfer.files[0];
+  if(f) uploadFile(f);
+}
+
+// ── Upload ───────────────────────────────────────────────────────────────────
+async function uploadFile(file){
+  if(!file||!file.name.toLowerCase().endsWith(".xlsx")){
+    setStatus("upload-status","Seuls les fichiers .xlsx sont acceptés.","err"); return;
+  }
+  const fd=new FormData(); fd.append("file",file);
+  setStatus("upload-status","Chargement…","info");
+  try{
+    const r=await fetch("{{ url_for('ticket_sam.api_upload') }}",{method:"POST",body:fd});
+    const j=await r.json();
+    if(!j.ok){setStatus("upload-status",j.error,"err");return;}
+    document.getElementById("file-name").textContent=j.filename;
+    document.getElementById("file-name").style.display="block";
+    setStatus("upload-status","Fichier chargé avec succès.","ok");
+    renderSheets(j.sheets);
+    document.getElementById("btn-process").style.display="inline-flex";
+  }catch(e){setStatus("upload-status","Erreur réseau : "+e,"err")}
+}
+
+function renderSheets(sheets){
+  const el=document.getElementById("sheet-list");
+  el.innerHTML="";
+  for(const[name,info] of Object.entries(sheets)){
+    el.innerHTML+=`<div class="alert alert-info" style="margin:0;padding:6px 12px;font-size:12px">
+      <b>${esc(name)}</b> — ${info.rows.toLocaleString()} lignes × ${info.cols} colonnes
+    </div>`;
+  }
+  document.getElementById("sheet-summary").style.display="block";
+}
+
+// ── Traitement ───────────────────────────────────────────────────────────────
+async function processFile(){
+  document.getElementById("processing-banner").style.display="block";
+  document.getElementById("btn-process").disabled=true;
+  document.getElementById("btn-process-inline").disabled=true;
+  document.getElementById("kpi-section").style.display="none";
+  try{
+    const r=await fetch("{{ url_for('ticket_sam.api_process') }}",{method:"POST"});
+    const j=await r.json();
+    document.getElementById("processing-banner").style.display="none";
+    if(!j.ok){
+      setStatus("upload-status","Erreur traitement : "+(j.error||"inconnue"),"err");
+      document.getElementById("btn-process").disabled=false;
+      document.getElementById("btn-process-inline").disabled=false;
+      return;
+    }
+    renderAll(j.kpis, j.anon_stats);
+    // Charger le prompt en arrière-plan
+    loadPrompt();
+    document.getElementById("btn-download").style.display="inline-flex";
+    document.getElementById("btn-prompt").style.display="inline-flex";
+  }catch(e){
+    document.getElementById("processing-banner").style.display="none";
+    setStatus("upload-status","Erreur : "+e,"err");
+    document.getElementById("btn-process").disabled=false;
+    document.getElementById("btn-process-inline").disabled=false;
+  }
+}
+
+// ── Rendu KPIs ───────────────────────────────────────────────────────────────
+function renderAll(kpis, anonStats){
+  const stock=kpis.stock||{}, legacy=kpis.legacy||{};
+
+  // Bandeau anon
+  if(anonStats){
+    document.getElementById("anon-stats-wrap").innerHTML=`
+      <div class="anon-badge">
+        <span><b>${anonStats.noms_uniques||0}</b> noms remplacés</span>
+        <span><b>${anonStats.emails_uniques||0}</b> e-mails</span>
+        <span><b>${anonStats.telephones_uniques||0}</b> téléphones</span>
+        <span><b>${anonStats.kpep_uniques||0}</b> KPEP</span>
+      </div>`;
+  }
+
+  // KPI cards
+  const cards=[
+    {val: stock.total||0, lbl:"Tickets (stock)", cls:""},
+    {val: stock.clos||0,  lbl:"Clôturés", cls:""},
+    {val: stock.ouverts||0, lbl:"Ouverts", cls: stock.ouverts>100?"warn":""},
+    {val: (stock.taux_cloture||0)+"%", lbl:"Taux de clôture", cls:""},
+    {val: stock.n_en_retard||0, lbl:"En retard SLA", cls: (stock.n_en_retard||0)>0?"danger":""},
+    {val: (stock.taux_sla!=null?stock.taux_sla+"%":"—"), lbl:"Respect SLA (calc.)", cls:""},
+  ];
+  if(legacy.total){
+    const d=legacy.duree_resolution||{};
+    cards.push({val: legacy.total.toLocaleString(), lbl:"Tickets Legacy", cls:""});
+    if(d.moyenne_jours!=null) cards.push({val:d.moyenne_jours+"j", lbl:"Moy. résolution (Legacy)", cls:""});
+  }
+  const stockD=stock.duree_resolution||{};
+  if(stockD.moyenne_jours!=null)
+    cards.splice(4,0,{val:stockD.moyenne_jours+"j", lbl:"Moy. résolution (stock)", cls:""});
+
+  document.getElementById("kpi-cards").innerHTML=
+    cards.map(c=>`<div class="kpi-card ${c.cls}">
+      <div class="val">${esc(String(c.val))}</div><div class="lbl">${esc(c.lbl)}</div>
+    </div>`).join("");
+
+  // Charts
+  buildChartStatut(stock.par_statut||{});
+  buildChartPriorite(stock.par_priorite||{});
+  buildChartEvolution(stock.evolution_ouvertures||[], stock.evolution_clotures||[]);
+  buildChartSLA(stock.duree_par_priorite||[]);
+
+  // Tables
+  renderTable("table-theme",  stock.par_theme||[], stock.total);
+  renderTable("table-region", stock.par_region||[], stock.total);
+  renderTable("table-intervenant", stock.par_intervenant||[], stock.total);
+  renderTable("table-origine", stock.par_origine||[], stock.total);
+  if(stock.par_theme) document.getElementById("theme-count").textContent=(stock.par_theme.length)+" thèmes";
+  if(stock.par_region) document.getElementById("region-count").textContent=(stock.par_region.length)+" régions";
+
+  // Legacy
+  const legacyCard=document.getElementById("legacy-card");
+  if(legacy.total){
+    if(legacyCard) legacyCard.style.display="block";
+    const dl=legacy.duree_resolution||{};
+    document.getElementById("legacy-content").innerHTML=`
+      <div class="kpi-grid" style="margin-bottom:12px">
+        <div class="kpi-card"><div class="val">${legacy.total.toLocaleString()}</div><div class="lbl">Total tickets</div></div>
+        ${dl.moyenne_jours!=null?`<div class="kpi-card"><div class="val">${dl.moyenne_jours}j</div><div class="lbl">Durée moy.</div></div>`:""}
+        ${dl.mediane_jours!=null?`<div class="kpi-card"><div class="val">${dl.mediane_jours}j</div><div class="lbl">Médiane</div></div>`:""}
+        ${dl.p90_jours!=null?`<div class="kpi-card"><div class="val">${dl.p90_jours}j</div><div class="lbl">P90</div></div>`:""}
+      </div>
+      <div class="two-col">
+        <div>${renderTableHtml("Top thèmes (Legacy)", legacy.par_theme||[], legacy.total)}</div>
+        <div>${renderTableHtml("Évolution mensuelle", (legacy.evolution_ouvertures||[]).slice(-12), null)}</div>
+      </div>`;
+  } else {
+    if(legacyCard) legacyCard.style.display="none";
+  }
+
+  document.getElementById("kpi-section").style.display="block";
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+let _charts={};
+function destroyChart(id){if(_charts[id]){_charts[id].destroy();delete _charts[id];}}
+
+function buildChartStatut(data){
+  destroyChart("statut");
+  const labels=Object.keys(data), vals=Object.values(data);
+  const colors=["#6ab023","#60a5fa","#f59e0b","#ef4444","#a0a0b0","#8b5cf6","#ec4899","#14b8a6"];
+  _charts["statut"]=new Chart(document.getElementById("chart-statut"),{
+    type:"doughnut",
+    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:0}]},
+    options:{plugins:{legend:{position:"bottom",labels:{font:{size:11},color:"#a0a0b0"}}},
+             maintainAspectRatio:false}
+  });
+}
+
+function buildChartPriorite(data){
+  destroyChart("priorite");
+  const labels=Object.keys(data).map(k=>k==="0"?"Inconnu":"P"+k);
+  const vals=Object.values(data);
+  const colors=labels.map((_,i)=>PRIO_COLORS[i]||"#666");
+  _charts["priorite"]=new Chart(document.getElementById("chart-priorite"),{
+    type:"bar",
+    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderRadius:4}]},
+    options:{plugins:{legend:{display:false}},
+             scales:{x:{ticks:{color:"#a0a0b0"}},y:{ticks:{color:"#a0a0b0"},grid:{color:"#2a2a38"}}},
+             maintainAspectRatio:false}
+  });
+}
+
+function buildChartEvolution(ouv, clo){
+  destroyChart("evolution");
+  const canvas=document.getElementById("chart-evolution");
+  let placeholder=document.getElementById("chart-evolution-placeholder");
+  if(!ouv.length&&!clo.length){
+    if(canvas) canvas.style.display="none";
+    if(!placeholder){
+      placeholder=document.createElement("p");
+      placeholder.id="chart-evolution-placeholder";
+      placeholder.style.cssText="color:var(--text-dim);font-size:12px;text-align:center;padding:40px";
+      placeholder.textContent="Données insuffisantes";
+      canvas.parentNode.appendChild(placeholder);
+    }
+    placeholder.style.display="block";
+    return;
+  }
+  if(placeholder) placeholder.style.display="none";
+  if(canvas) canvas.style.display="block";
+  const allMois=[...new Set([...ouv.map(x=>x.mois),...clo.map(x=>x.mois)])].sort();
+  const mapOuv=Object.fromEntries(ouv.map(x=>[x.mois,x.count]));
+  const mapClo=Object.fromEntries(clo.map(x=>[x.mois,x.count]));
+  _charts["evolution"]=new Chart(document.getElementById("chart-evolution"),{
+    type:"line",
+    data:{
+      labels:allMois,
+      datasets:[
+        {label:"Ouvertures",data:allMois.map(m=>mapOuv[m]||0),
+         borderColor:"#f59e0b",backgroundColor:"rgba(245,158,11,.1)",tension:.3,fill:true},
+        {label:"Clôtures",data:allMois.map(m=>mapClo[m]||0),
+         borderColor:"#6ab023",backgroundColor:"rgba(106,176,35,.1)",tension:.3,fill:true},
+      ]
+    },
+    options:{plugins:{legend:{labels:{color:"#a0a0b0",font:{size:11}}}},
+             scales:{x:{ticks:{color:"#a0a0b0",maxRotation:45}},
+                     y:{ticks:{color:"#a0a0b0"},grid:{color:"#2a2a38"}}},
+             maintainAspectRatio:false}
+  });
+}
+
+function buildChartSLA(items){
+  const slaCard=document.getElementById("sla-card");
+  if(!items||!items.length){if(slaCard) slaCard.style.display="none"; return;}
+  if(slaCard) slaCard.style.display="block";
+  destroyChart("sla");
+  const labels=items.map(i=>"P"+i.priorite);
+  const moy=items.map(i=>i.moyenne_jours);
+  const med=items.map(i=>i.mediane_jours);
+  const sla=items.map(i=>i.sla_jours);
+  _charts["sla"]=new Chart(document.getElementById("chart-sla"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {label:"Durée moyenne (j)",data:moy,backgroundColor:"#60a5fa",borderRadius:4},
+        {label:"Médiane (j)",data:med,backgroundColor:"#6ab023",borderRadius:4},
+        {label:"SLA cible (j)",data:sla,type:"line",borderColor:"#ef4444",
+         borderDash:[5,5],pointStyle:"circle",tension:0,fill:false,pointRadius:5},
+      ]
+    },
+    options:{plugins:{legend:{labels:{color:"#a0a0b0",font:{size:11}}}},
+             scales:{x:{ticks:{color:"#a0a0b0"}},y:{ticks:{color:"#a0a0b0"},grid:{color:"#2a2a38"}}},
+             maintainAspectRatio:false}
+  });
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────────
+function renderTable(elId, items, total){
+  document.getElementById(elId).innerHTML=renderTableHtml(null,items,total);
+}
+
+function renderTableHtml(title, items, total){
+  if(!items||!items.length) return '<p style="color:var(--text-dim);font-size:12px">Aucune donnée</p>';
+  const max=Math.max(...items.map(i=>i.count));
+  const rows=items.slice(0,12).map(item=>{
+    const pct=total?Math.round(item.count/total*100):Math.round(item.count/max*100);
+    return `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="${esc(item.label)}">${esc(item.label)}</td>
+      <td style="width:50px;text-align:right;font-weight:700">${item.count}</td>
+      <td style="width:80px">
+        <div class="bar-bg"><div class="bar-fill" style="width:${Math.round(item.count/max*100)}%"></div></div>
+        <span style="font-size:10px;color:var(--text-dim)">${pct}%</span>
+      </td>
+    </tr>`;
+  }).join("");
+  return `${title?`<div class="section-title" style="font-size:11px;margin-bottom:6px">${esc(title)}</div>`:""}
+    <table class="mini-table"><tbody>${rows}</tbody></table>`;
+}
+
+// ── Prompt ────────────────────────────────────────────────────────────────────
+async function loadPrompt(){
+  try{
+    const r=await fetch("{{ url_for('ticket_sam.api_prompt') }}");
+    const j=await r.json();
+    if(j.ok) document.getElementById("prompt-text").value=j.prompt;
+  }catch(e){console.warn("Prompt non disponible",e);}
+}
+
+function copyPrompt(){
+  const ta=document.getElementById("prompt-text");
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(()=>{
+    const fb=document.getElementById("copy-feedback");
+    fb.style.display="inline";
+    setTimeout(()=>fb.style.display="none",2000);
+  });
+}
+
+function scrollToPrompt(){
+  document.getElementById("prompt-section").scrollIntoView({behavior:"smooth"});
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+function downloadAnon(){
+  window.location.href="{{ url_for('ticket_sam.api_download_anon') }}";
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setStatus(elId, msg, level){
+  const m={"ok":"alert-ok","err":"alert-err","info":"alert-info","warn":"alert-warn"};
+  document.getElementById(elId).innerHTML=
+    `<div class="alert ${m[level]||"alert-info"}">${esc(msg)}</div>`;
+}
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g,m=>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+</script>
+{% endblock %}

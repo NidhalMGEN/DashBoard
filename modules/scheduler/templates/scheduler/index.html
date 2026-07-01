@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Planification{% endblock %}
+
+{% block head_extra %}
+<style>
+  .sch-layout{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+  @media(max-width:1000px){.sch-layout{grid-template-columns:1fr}}
+  .row{margin-bottom:12px}.row label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px}
+  .days{display:flex;gap:6px;flex-wrap:wrap}
+  .day{font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid var(--border-active);
+       background:var(--bg-input);color:var(--text-muted);cursor:pointer}
+  .day.on{background:var(--mgen-green-dk);border-color:var(--mgen-green);color:#fff}
+  .sch-item{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card)}
+  .sch-item.off{opacity:.55}
+  .sch-item .top{display:flex;align-items:center;gap:10px}
+  .sch-item .nm{font-size:14px;font-weight:700}
+  .sch-item .meta{font-size:11px;color:var(--text-dim);margin-top:4px}
+  .sch-item .acts{margin-left:auto;display:flex;gap:8px}
+  .pill{font-size:10px;padding:1px 8px;border-radius:8px;background:var(--bg-input);color:var(--text-dim)}
+  .pill.ok{color:var(--success)} .pill.err{color:var(--danger)}
+  .scripts-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .scripts-pick label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+  .switch{cursor:pointer;font-size:18px}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div id="status"></div>
+  <div class="sch-layout">
+    <div class="card">
+      <div class="section-title">Nouvelle planification</div>
+      <div class="row"><label>Nom</label><input type="text" id="f-name" placeholder="Ex. Pipeline quotidien"></div>
+      <div class="row"><label>Type de tâche</label>
+        <select id="f-kind"><option value="pipeline">Pipeline ETL</option><option value="sql">Requêtes SQL</option></select>
+      </div>
+      <div class="row" id="pipe-opts">
+        <label>Portée pipeline</label>
+        <select id="f-mode"><option value="full">Pipeline complet (01→07)</option><option value="selection">Scripts sélectionnés</option></select>
+        <div class="scripts-pick" id="f-scripts" style="display:none"></div>
+      </div>
+      <div class="row" id="sql-opts" style="display:none">
+        <label>Environnement SQL</label>
+        <select id="f-env"><option>PROD</option><option>QUALIF</option></select>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Toutes les requêtes (dates J-1).</div>
+      </div>
+      <div class="row"><label>Fréquence</label>
+        <select id="f-freq"><option value="daily">Quotidienne</option><option value="weekly">Hebdomadaire</option></select>
+      </div>
+      <div class="row" id="days-row" style="display:none">
+        <label>Jours</label>
+        <div class="days" id="f-days"></div>
+      </div>
+      <div class="row"><label>Heure (HH:MM)</label><input type="text" id="f-time" placeholder="06:30" style="max-width:120px"></div>
+      <div class="row"><label>Réessais en cas d'échec (0-5)</label>
+        <input type="number" id="f-retries" value="0" min="0" max="5" style="max-width:120px"></div>
+      <button class="btn btn-primary" id="btn-add" style="width:100%">+ Ajouter la planification</button>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:10px">
+        ⚠ En mode planifié, les pauses (CM/CK, reliquat) sont franchies automatiquement —
+        déposez les fichiers nécessaires au préalable. Identifiants pris depuis credentials.ini.
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Planifications actives</div>
+      <div id="sch-list"><div style="color:var(--text-dim)">Chargement…</div></div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API={list:"{{ url_for('scheduler.api_list') }}",add:"{{ url_for('scheduler.api_add') }}"};
+const DAYS=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+let SCRIPTS=[];
+
+// Formulaire dynamique
+document.getElementById("f-kind").addEventListener("change",e=>{
+  document.getElementById("pipe-opts").style.display=e.target.value==="pipeline"?"block":"none";
+  document.getElementById("sql-opts").style.display=e.target.value==="sql"?"block":"none";
+});
+document.getElementById("f-mode").addEventListener("change",e=>{
+  document.getElementById("f-scripts").style.display=e.target.value==="selection"?"flex":"none";
+});
+document.getElementById("f-freq").addEventListener("change",e=>{
+  document.getElementById("days-row").style.display=e.target.value==="weekly"?"block":"none";
+});
+// Jours
+document.getElementById("f-days").innerHTML=DAYS.map((d,i)=>`<span class="day" data-d="${i}">${d}</span>`).join("");
+document.querySelectorAll("#f-days .day").forEach(el=>el.addEventListener("click",()=>el.classList.toggle("on")));
+
+async function loadList(){
+  const r=await fetch(API.list);const j=await r.json();
+  SCRIPTS=j.scripts;
+  document.getElementById("f-scripts").innerHTML=SCRIPTS.map(s=>
+    `<label><input type="checkbox" class="sc" value="${s.id}"> ${s.label}</label>`).join("");
+  const box=document.getElementById("sch-list");
+  if(!j.schedules.length){box.innerHTML='<div style="color:var(--text-dim)">Aucune planification.</div>';return;}
+  box.innerHTML=j.schedules.map(s=>{
+    const freq=s.frequency==="weekly"?("Hebdo — "+(s.days||[]).map(d=>DAYS[d]).join(", ")):"Quotidien";
+    const last=s.last_status?`<span class="pill ${s.last_status==='ok'?'ok':'err'}">${s.last_status==='ok'?'✓ dernier OK':'✗ dernier échec'}</span>`:"";
+    return `<div class="sch-item ${s.enabled?'':'off'}">
+      <div class="top">
+        <span class="switch" title="Activer/désactiver" onclick="toggle('${s.id}',${!s.enabled})">${s.enabled?'🟢':'⚪'}</span>
+        <div>
+          <div class="nm">${esc(s.name)} <span class="pill">${s.kind==='pipeline'?'⚙️ Pipeline':'🗄️ SQL'}</span></div>
+          <div class="meta">${freq} à ${s.time}${s.max_retries?' · '+s.max_retries+' réessai(s)':''}${s.last_fired?' · dernier '+s.last_fired:''} ${last}</div>
+        </div>
+        <div class="acts">
+          <button class="btn" style="padding:5px 10px" onclick="runNow('${s.id}')">▶ Lancer</button>
+          <button class="btn btn-danger" style="padding:5px 10px" onclick="del('${s.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+function esc(s){return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+
+document.getElementById("btn-add").addEventListener("click",async()=>{
+  const kind=document.getElementById("f-kind").value;
+  const config=kind==="pipeline"
+    ? {mode:document.getElementById("f-mode").value,
+       scripts:[...document.querySelectorAll(".sc:checked")].map(c=>c.value)}
+    : {environment:document.getElementById("f-env").value};
+  const body={
+    name:document.getElementById("f-name").value,
+    kind, frequency:document.getElementById("f-freq").value,
+    days:[...document.querySelectorAll("#f-days .day.on")].map(e=>parseInt(e.dataset.d)),
+    time:document.getElementById("f-time").value,
+    max_retries:parseInt(document.getElementById("f-retries").value)||0, config,
+  };
+  const st=document.getElementById("status");
+  const r=await fetch(API.add,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(j.error){st.innerHTML=`<div class="alert alert-err">${j.error}</div>`;}
+  else{st.innerHTML='<div class="alert alert-ok">✓ Planification ajoutée</div>';document.getElementById("f-name").value="";loadList();}
+});
+async function del(id){if(!confirm("Supprimer cette planification ?"))return;
+  await fetch("/scheduler/api/schedules/"+id,{method:"DELETE"});loadList();}
+async function toggle(id,en){await fetch("/scheduler/api/schedules/"+id+"/toggle",
+  {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:en})});loadList();}
+async function runNow(id){await fetch("/scheduler/api/schedules/"+id+"/run",{method:"POST"});
+  document.getElementById("status").innerHTML='<div class="alert alert-info">▶ Exécution lancée — voir l\'historique sur le dashboard.</div>';}
+loadList();
+</script>
+{% endblock %}

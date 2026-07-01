@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+
+{% block head_extra %}
+<style>
+  .adm-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media(max-width:980px){.adm-grid{grid-template-columns:1fr}}
+  .th-row{display:grid;grid-template-columns:1fr 90px 90px;gap:10px;align-items:center;
+          padding:8px 0;border-bottom:1px solid var(--border)}
+  .th-row .lbl{font-size:13px}
+  .th-row input{width:80px;text-align:right}
+  .th-head{font-size:11px;color:var(--text-muted);text-transform:uppercase}
+  .mod-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .mod-item .st{margin-left:auto;font-size:11px;font-weight:700}
+  .mod-item .st.on{color:var(--success)} .mod-item .st.off{color:var(--text-dim)}
+  .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .kv .v{color:var(--text-muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div id="status"></div>
+  <div class="adm-grid">
+    <div class="card">
+      <div class="section-title">Seuils d'alerte</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+        Vert si ≥ seuil « vert », orange si ≥ seuil « orange », rouge sinon.</div>
+      <div class="th-row"><span class="th-head">Indicateur</span>
+        <span class="th-head" style="text-align:right">Vert ≥</span>
+        <span class="th-head" style="text-align:right">Orange ≥</span></div>
+      <div id="th-list"></div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn btn-primary" id="btn-save">💾 Enregistrer</button>
+        <button class="btn" id="btn-reset">↺ Valeurs par défaut</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="section-title">Modules</div>
+        <div id="mod-list"></div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:8px">
+          (Activation/désactivation via modules/_registry.py — redémarrage requis.)</div>
+      </div>
+      <div class="card">
+        <div class="section-title">État système</div>
+        <div id="sys-info"></div>
+        <button class="btn" id="btn-reload-cred" style="margin-top:10px">↻ Recharger credentials.ini</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API={cfg:"{{ url_for('admin.api_config') }}",save:"{{ url_for('admin.api_thresholds') }}"};
+let DEFAULTS={};
+
+async function load(){
+  const r=await fetch(API.cfg);const j=await r.json();
+  document.getElementById("th-list").innerHTML=j.thresholds.map(t=>{
+    DEFAULTS[t.key]={green:t.default_green,orange:t.default_orange};
+    return `<div class="th-row" data-key="${t.key}">
+      <span class="lbl">${t.label}</span>
+      <input type="number" step="0.1" class="th-green" value="${t.green}">
+      <input type="number" step="0.1" class="th-orange" value="${t.orange}"></div>`;
+  }).join("");
+  document.getElementById("mod-list").innerHTML=j.modules.map(m=>
+    `<div class="mod-item"><span>${m.code} · ${m.label}</span>
+      <span class="st ${m.enabled?'on':'off'}">${m.enabled?'● actif':'○ inactif'}</span></div>`).join("");
+  const c=j.credentials||{};
+  document.getElementById("sys-info").innerHTML=
+    `<div class="kv"><span>Python</span><span class="v">${j.python||'—'}</span></div>`+
+    `<div class="kv"><span>credentials.ini</span><span class="v">${c.file_present?'présent':'absent'}</span></div>`+
+    `<div class="kv"><span>Sections renseignées</span><span class="v">${c.sections_complete||0}/${c.sections_total||0}</span></div>`+
+    `<div class="kv"><span>Modules actifs</span><span class="v">${j.modules.length}</span></div>`;
+}
+document.getElementById("btn-save").addEventListener("click",async()=>{
+  const thresholds={};
+  document.querySelectorAll("#th-list .th-row").forEach(row=>{
+    thresholds[row.dataset.key]={
+      green:parseFloat(row.querySelector(".th-green").value),
+      orange:parseFloat(row.querySelector(".th-orange").value)};
+  });
+  const r=await fetch(API.save,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({thresholds})});
+  const j=await r.json();
+  document.getElementById("status").innerHTML=j.ok
+    ?'<div class="alert alert-ok">✓ Seuils enregistrés (appliqués immédiatement).</div>'
+    :'<div class="alert alert-err">Échec de l\'enregistrement.</div>';
+});
+document.getElementById("btn-reset").addEventListener("click",()=>{
+  document.querySelectorAll("#th-list .th-row").forEach(row=>{
+    const d=DEFAULTS[row.dataset.key];if(!d)return;
+    row.querySelector(".th-green").value=d.green;
+    row.querySelector(".th-orange").value=d.orange;
+  });
+});
+document.getElementById("btn-reload-cred").addEventListener("click",reloadCreds);
+load();
+</script>
+{% endblock %}

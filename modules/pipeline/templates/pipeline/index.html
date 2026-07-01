@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Pipeline ETL{% endblock %}
+
+{% block head_extra %}
+<style>
+  .pl-layout{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
+  @media(max-width:1100px){.pl-layout{grid-template-columns:1fr}}
+  .script-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;
+              border:1px solid var(--border);margin-bottom:8px;background:var(--bg-card)}
+  .script-row.running{border-color:var(--running)}
+  .script-row.ok{border-color:var(--success)}
+  .script-row.error{border-color:var(--danger)}
+  .script-row.skip{opacity:.5}
+  .script-row input{margin-top:3px;accent-color:var(--mgen-green);width:16px;height:16px}
+  .script-row .meta{flex:1;min-width:0}
+  .script-row .nm{font-size:13px;font-weight:600}
+  .script-row .ds{font-size:11px;color:var(--text-dim);margin-top:2px}
+  .script-row .st{font-size:11px;font-weight:700;white-space:nowrap}
+  .st.pending{color:var(--text-dim)} .st.running{color:var(--running)}
+  .st.ok{color:var(--success)} .st.error{color:var(--danger)} .st.skip{color:var(--skip)}
+  .dur{font-size:10px;color:var(--text-dim);background:var(--bg-input);border-radius:8px;padding:1px 7px}
+  .sel-toolbar{display:flex;gap:8px;margin-bottom:10px;font-size:12px}
+  .sel-toolbar a{color:var(--info);cursor:pointer;text-decoration:underline}
+  .total-est{font-size:12px;color:var(--text-muted);margin:6px 0 14px}
+  .logbox{background:#0e0e16;border:1px solid var(--border);border-radius:10px;padding:14px;
+          font-family:Consolas,monospace;font-size:12px;line-height:1.7;height:520px;overflow-y:auto;white-space:pre-wrap}
+  .log-ts{color:#444460}
+  .log-sec{color:var(--mgen-green);font-weight:700;border-top:1px solid #20202c;margin-top:6px;padding-top:6px}
+  progress{width:100%;height:10px;border-radius:6px;overflow:hidden;border:none;background:var(--bg-input)}
+  progress::-webkit-progress-bar{background:var(--bg-input)}
+  progress::-webkit-progress-value{background:var(--mgen-green)}
+  progress::-moz-progress-bar{background:var(--mgen-green)}
+  .pause-banner{display:none;background:#1a2040;border:1px solid #2a3a70;border-radius:8px;
+                padding:12px 16px;margin:12px 0;align-items:center;gap:10px}
+  .pause-dot{width:10px;height:10px;border-radius:50%;background:var(--info)}
+  .login-card{max-width:430px;margin:24px auto}
+  .row{margin-bottom:14px}
+  .row label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px}
+  .modes{display:flex;gap:10px;margin:14px 0}
+  .warn-inline{color:var(--warning);font-size:11px;margin-top:4px}
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
+            align-items:center;justify-content:center}
+  .modal{background:var(--bg-card);border:1px solid var(--border-active);border-radius:12px;
+         padding:24px;max-width:420px;text-align:center}
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- Connexion -->
+  <div id="view-login" class="card login-card">
+    <div class="section-title">Connexion base IEHE</div>
+    <div class="row">
+      <label>Utilisateur</label>
+      <input type="text" id="pg_user" autocomplete="username">
+    </div>
+    <div class="row">
+      <label>Mot de passe</label>
+      <input type="password" id="pg_password" autocomplete="current-password">
+    </div>
+    <div id="login-err" class="alert alert-err" style="display:none"></div>
+    <button class="btn btn-primary" id="btn-login" style="width:100%">Continuer →</button>
+  </div>
+
+  <!-- Pipeline -->
+  <div id="view-pipeline" style="display:none">
+    <div class="pl-layout">
+      <div class="card">
+        <div class="section-title">Scripts du pipeline</div>
+        <div class="sel-toolbar">
+          <a id="sel-all">Tout sélectionner</a>·
+          <a id="sel-none">Tout désélectionner</a>
+        </div>
+        <div id="script-list"></div>
+        <div class="total-est" id="total-est"></div>
+        <progress id="prog" value="0" max="100"></progress>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="prog-label"></div>
+        <div class="modes">
+          <button class="btn btn-primary" id="btn-run-sel" style="flex:1">▶ Lancer la sélection</button>
+          <button class="btn" id="btn-run-full" style="flex:1">▶▶ Pipeline complet</button>
+        </div>
+      </div>
+
+      <div>
+        <div id="pause-banner" class="pause-banner">
+          <span class="pause-dot pulse"></span>
+          <span id="pause-msg" style="flex:1"></span>
+          <button class="btn btn-primary" id="btn-resume">✅ Continuer</button>
+        </div>
+        <div id="error-banner" class="alert alert-err" style="display:none"></div>
+        <div class="section-title">Logs en temps réel</div>
+        <div class="logbox" id="logbox"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale confirmation pipeline complet -->
+  <div class="modal-bg" id="modal-full">
+    <div class="modal">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">Lancer le pipeline complet ?</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:18px">
+        Les 7 scripts (01→07) seront exécutés dans l'ordre, indépendamment des cases cochées.</p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" id="modal-cancel">Annuler</button>
+        <button class="btn btn-primary" id="modal-confirm">Confirmer</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = {
+  scripts: "{{ url_for('pipeline.api_scripts') }}",
+  start:   "{{ url_for('pipeline.start') }}",
+  stream:  "{{ url_for('pipeline.stream') }}",
+  resume:  "{{ url_for('pipeline.resume') }}",
+  credStatus: "{{ url_for('pipeline.api_credentials_status') }}",
+  errorDecision: "{{ url_for('pipeline.error_decision') }}",
+};
+const LS_KEY = "pipeline_selection";
+let SCRIPTS = [];
+let creds = {user:"", pass:""};
+
+const colors = {ok:"#6ab023",warn:"#f59e0b",error:"#ef4444",info:"#a0a0b0",pause:"#60a5fa"};
+
+// ---- Connexion ----
+document.getElementById("btn-login").addEventListener("click", ()=>{
+  const u=document.getElementById("pg_user").value.trim();
+  const p=document.getElementById("pg_password").value;
+  const err=document.getElementById("login-err");
+  if(!u||!p){err.style.display="block";err.textContent="Identifiants requis.";return;}
+  creds={user:u,pass:p};
+  document.getElementById("view-login").style.display="none";
+  document.getElementById("view-pipeline").style.display="block";
+  loadScripts();
+});
+document.getElementById("pg_password").addEventListener("keydown",e=>{
+  if(e.key==="Enter") document.getElementById("btn-login").click();
+});
+
+// Si les identifiants IEHE sont déjà dans credentials.ini, on saute l'écran
+// de connexion : le pipeline les utilisera automatiquement côté serveur.
+async function checkCreds(){
+  try{
+    const r=await fetch(API.credStatus);const j=await r.json();
+    if(j.iehe_available){
+      creds={user:j.user||"(credentials.ini)",pass:"__from_ini__"};
+      document.getElementById("view-login").style.display="none";
+      document.getElementById("view-pipeline").style.display="block";
+      loadScripts();
+    }
+  }catch(e){}
+}
+checkCreds();
+
+// ---- Catalogue scripts ----
+async function loadScripts(){
+  const r = await fetch(API.scripts);
+  SCRIPTS = (await r.json()).scripts;
+  const saved = JSON.parse(localStorage.getItem(LS_KEY)||"null");
+  const list = document.getElementById("script-list");
+  list.innerHTML = SCRIPTS.map(s=>{
+    const checked = saved? saved.includes(s.id) : true;
+    return `<div class="script-row" id="row-${s.id}">
+      <input type="checkbox" data-id="${s.id}" ${checked?"checked":""}>
+      <div class="meta">
+        <div class="nm">${s.label} ${s.conditional?'<span class="dur">conditionnel</span>':''}</div>
+        <div class="ds">${s.desc}</div>
+        <div class="warn-inline" id="warn-${s.id}" style="display:none"></div>
+      </div>
+      <div>
+        <div class="dur">~${Math.round(s.duration_est/60)||1} min</div>
+        <div class="st pending" id="st-${s.id}">en attente</div>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("input").forEach(cb=>cb.addEventListener("change",onSelectionChange));
+  onSelectionChange();
+}
+
+function selectedIds(){
+  return [...document.querySelectorAll("#script-list input:checked")].map(c=>c.dataset.id);
+}
+function onSelectionChange(){
+  const sel = selectedIds();
+  localStorage.setItem(LS_KEY, JSON.stringify(sel));
+  // Durée totale estimée
+  const tot = SCRIPTS.filter(s=>sel.includes(s.id)).reduce((a,s)=>a+s.duration_est,0);
+  document.getElementById("total-est").textContent =
+    `Durée totale estimée : ~${Math.ceil(tot/60)} min · ${sel.length}/${SCRIPTS.length} scripts`;
+  // Warning dépendances décochées
+  SCRIPTS.forEach(s=>{
+    const w=document.getElementById("warn-"+s.id);
+    if(!sel.includes(s.id)){w.style.display="none";return;}
+    const missing=(s.deps||[]).filter(d=>!sel.includes(d));
+    if(missing.length){
+      w.style.display="block";
+      w.textContent="⚠ Prérequis décoché : "+missing.join(", ");
+    } else w.style.display="none";
+  });
+  document.getElementById("btn-run-sel").disabled = sel.length===0;
+}
+document.getElementById("sel-all").addEventListener("click",()=>{
+  document.querySelectorAll("#script-list input").forEach(c=>c.checked=true);onSelectionChange();});
+document.getElementById("sel-none").addEventListener("click",()=>{
+  document.querySelectorAll("#script-list input").forEach(c=>c.checked=false);onSelectionChange();});
+
+// ---- Lancement ----
+async function launch(mode){
+  // Si les creds viennent de credentials.ini, on envoie vide : le serveur
+  // les complète depuis le fichier (mot de passe jamais exposé au front).
+  const fromIni = creds.pass==="__from_ini__";
+  const body={pg_user:fromIni?"":creds.user,pg_password:fromIni?"":creds.pass,mode};
+  if(mode==="selection") body.scripts=selectedIds();
+  resetStatuses();
+  const r=await fetch(API.start,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok){showError(j.error||"Erreur de lancement");return;}
+  document.getElementById("btn-run-sel").disabled=true;
+  document.getElementById("btn-run-full").disabled=true;
+  openStream();
+}
+document.getElementById("btn-run-sel").addEventListener("click",()=>launch("selection"));
+document.getElementById("btn-run-full").addEventListener("click",()=>{
+  document.getElementById("modal-full").style.display="flex";});
+document.getElementById("modal-cancel").addEventListener("click",()=>{
+  document.getElementById("modal-full").style.display="none";});
+document.getElementById("modal-confirm").addEventListener("click",()=>{
+  document.getElementById("modal-full").style.display="none";launch("full");});
+
+function resetStatuses(){
+  document.getElementById("logbox").innerHTML="";
+  document.getElementById("error-banner").style.display="none";
+  SCRIPTS.forEach(s=>setStatus(s.id,"pending","en attente"));
+}
+function setStatus(id,cls,txt){
+  const st=document.getElementById("st-"+id), row=document.getElementById("row-"+id);
+  if(st){st.className="st "+cls;st.textContent=txt;}
+  if(row){row.className="script-row "+(cls==="pending"?"":cls);}
+}
+const STATUS_TXT={running:"en cours…",ok:"✓ terminé",error:"✗ erreur",skip:"ignoré",pending:"en attente"};
+
+// ---- SSE ----
+let nbDone=0,nbTotal=0;
+function openStream(){
+  nbTotal=selectedRunCount();nbDone=0;updateProg(0);
+  const es=new EventSource(API.stream);
+  es.onmessage=(e)=>{
+    const m=JSON.parse(e.data);
+    if(m.type==="log") appendLog(m);
+    else if(m.type==="step"){
+      setStatus(m.id,m.status,STATUS_TXT[m.status]||m.status);
+      if(m.status==="ok"||m.status==="skip"){nbDone++;updateProg();}
+    }
+    else if(m.type==="progress") updateProg(m.pct);
+    else if(m.type==="pause") showPause(m);
+    else if(m.type==="error_decision") showErrorDecision(m);
+    else if(m.type==="done"){es.close();finish(m.success);}
+  };
+  es.onerror=()=>{/* keep-alive gère la reconnexion */};
+}
+function selectedRunCount(){
+  // Le mode "full" exécute tout ; sinon nombre de cochés.
+  return selectedIds().length || SCRIPTS.length;
+}
+function appendLog(m){
+  const box=document.getElementById("logbox");
+  const isSec = m.text.startsWith("▶ Démarrage");
+  const div=document.createElement("div");
+  if(isSec) div.className="log-sec";
+  div.innerHTML=`<span class="log-ts">[${m.ts||""}]</span> <span style="color:${colors[m.level]||"#a0a0b0"}">${escapeHtml(m.text)}</span>`;
+  box.appendChild(div);
+  box.scrollTop=box.scrollHeight;
+}
+function escapeHtml(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function updateProg(pct){
+  if(pct===undefined) pct = nbTotal? Math.round(nbDone/nbTotal*100):0;
+  document.getElementById("prog").value=pct;
+  document.getElementById("prog-label").textContent=`${nbDone}/${nbTotal} scripts terminés`;
+}
+function showPause(m){
+  const b=document.getElementById("pause-banner");
+  b.style.display="flex";
+  document.getElementById("pause-msg").textContent=m.message;
+  document.getElementById("btn-resume").onclick=async()=>{
+    if(!confirm("Les fichiers sont bien présents dans Input_Data ?")) return;
+    b.style.display="none";
+    await fetch(API.resume,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({pause_id:m.id})});
+  };
+}
+function showError(txt){
+  const b=document.getElementById("error-banner");b.style.display="block";b.textContent="✗ "+txt;}
+function showErrorDecision(m){
+  const b=document.getElementById("error-banner");
+  b.style.display="block";
+  b.innerHTML=`<div style="margin-bottom:8px">✗ ${m.message}</div>
+    <button class="btn" id="err-continue" style="margin-right:8px">⏭ Ignorer et continuer</button>
+    <button class="btn btn-danger" id="err-abort">⛔ Abandonner</button>`;
+  const decide=async(d)=>{
+    b.style.display="none";b.innerHTML="";
+    await fetch(API.errorDecision,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({decision:d})});
+  };
+  document.getElementById("err-continue").onclick=()=>decide("continue");
+  document.getElementById("err-abort").onclick=()=>decide("abort");
+}
+function finish(success){
+  document.getElementById("btn-run-sel").disabled=false;
+  document.getElementById("btn-run-full").disabled=false;
+  onSelectionChange();
+  appendLog({ts:"",level:success?"ok":"error",
+    text: success? "✓ Pipeline terminé avec succès":"✗ Pipeline interrompu sur erreur"});
+}
+</script>
+{% endblock %}

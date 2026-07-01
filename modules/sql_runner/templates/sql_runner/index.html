@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Requêtes SQL{% endblock %}
+
+{% block head_extra %}
+<style>
+  .wizard-steps{display:flex;gap:8px;margin-bottom:20px}
+  .wstep{flex:1;padding:10px 14px;border-radius:8px;background:var(--bg-card);
+         border:1px solid var(--border);font-size:12px;color:var(--text-dim);text-align:center}
+  .wstep.active{border-color:var(--mgen-green);color:var(--mgen-green);font-weight:700}
+  .wstep.done{color:var(--success)}
+  .conn-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  @media(max-width:760px){.conn-grid{grid-template-columns:1fr}}
+  .row{margin-bottom:12px}.row label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px}
+  .acc{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+  .acc-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-input);cursor:pointer;font-size:13px;font-weight:600}
+  .acc-head .cnt{margin-left:auto;font-size:11px;color:var(--text-dim)}
+  .acc-body{padding:6px 14px 12px}
+  .q-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-bottom:1px solid var(--border)}
+  .q-row:last-child{border-bottom:none}
+  .q-row input[type=checkbox]{accent-color:var(--mgen-green);width:15px;height:15px}
+  .q-env{font:inherit;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;
+         background:var(--bg-input);border:1px solid var(--border-active);color:var(--text)}
+  .q-env.prod{border-color:#ef9a4a;color:#f0a85a}
+  .q-env.qualif{border-color:#60a5fa;color:#7db4fb}
+  .q-row .nm{font-size:13px}.q-row .tags{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .tag{font-size:10px;padding:1px 7px;border-radius:8px;background:var(--bg-input);color:var(--text-dim)}
+  .tag.j{color:#bcd7fb}.tag.s{color:#fcd9a0}
+  .badge-conn{font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700}
+  .badge-conn.ok{background:rgba(106,176,35,.15);color:var(--success)}
+  .badge-conn.ko{background:rgba(239,68,68,.15);color:var(--danger)}
+  .logbox{background:#0e0e16;border:1px solid var(--border);border-radius:10px;padding:14px;
+          font-family:Consolas,monospace;font-size:12px;line-height:1.7;height:300px;overflow-y:auto;white-space:pre-wrap}
+  .log-ts{color:#444460}
+  progress{width:100%;height:10px;border:none;background:var(--bg-input);border-radius:6px}
+  progress::-webkit-progress-value{background:var(--mgen-green)}
+  progress::-moz-progress-bar{background:var(--mgen-green)}
+  .recap{font-size:13px;line-height:1.9;background:var(--bg-card);border:1px solid var(--border);
+         border-radius:8px;padding:14px;margin-bottom:14px}
+  .dl-link{display:inline-flex;gap:6px;align-items:center;color:var(--info);text-decoration:underline;font-size:13px}
+  .hidden{display:none}
+  .warn-inline{color:var(--warning);font-size:11px;margin-top:6px}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="wizard-steps">
+    <div class="wstep active" id="ws1">1 · Connexion</div>
+    <div class="wstep" id="ws2">2 · Sélection</div>
+    <div class="wstep" id="ws3">3 · Exécution</div>
+  </div>
+
+  <!-- ÉTAPE 1 -->
+  <section id="step1" class="card">
+    <div class="section-title">Connexion aux bases</div>
+    <div class="row" style="max-width:280px">
+      <label>Environnement</label>
+      <select id="env-select"></select>
+    </div>
+    <div class="conn-grid">
+      <div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">Oracle (MDG / DWH)</div>
+        <div class="row"><label>Utilisateur</label><input type="text" id="ora_user"></div>
+        <div class="row"><label>Mot de passe</label><input type="password" id="ora_pass"></div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">IEHE / PostgreSQL <span style="color:var(--text-dim);font-weight:400">(optionnel)</span></div>
+        <div class="row"><label>Utilisateur</label><input type="text" id="iehe_user"></div>
+        <div class="row"><label>Mot de passe <span style="color:var(--text-dim)">(vide = creds Oracle)</span></label><input type="password" id="iehe_pass"></div>
+      </div>
+    </div>
+    <div id="conn-status"></div>
+    <button class="btn btn-primary" id="btn-connect">✓ Tester les connexions</button>
+  </section>
+
+  <!-- ÉTAPE 2 -->
+  <section id="step2" class="card hidden">
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <div class="section-title" style="margin:0">Sélection des requêtes</div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span class="tag" id="sel-count">0 sélectionnée(s)</span>
+        <button class="btn" id="btn-disconnect" style="padding:5px 10px">Se déconnecter</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12px;margin-bottom:8px">
+      <span>
+        <a id="qsel-all" style="color:var(--info);cursor:pointer;text-decoration:underline">Tout sélectionner</a> ·
+        <a id="qsel-none" style="color:var(--info);cursor:pointer;text-decoration:underline">Tout désélectionner</a>
+      </span>
+      <span style="color:var(--text-dim)">|</span>
+      <span style="color:var(--text-muted)">Environnement de toutes les requêtes :</span>
+      <button class="btn" id="env-all-qualif" style="padding:4px 10px">Tout QUALIF</button>
+      <button class="btn" id="env-all-prod" style="padding:4px 10px">Tout PROD</button>
+    </div>
+    <div id="query-accordions"></div>
+    <div id="query-errors"></div>
+
+    <div id="date-fields" style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap"></div>
+    <div id="param-fields" style="margin-top:12px"></div>
+    <div class="row" style="max-width:240px;margin-top:12px">
+      <label>Timeout par requête (s)</label>
+      <input type="text" id="timeout" value="300">
+    </div>
+    <button class="btn btn-primary" id="btn-to-exec" style="margin-top:8px">Continuer →</button>
+  </section>
+
+  <!-- ÉTAPE 3 -->
+  <section id="step3" class="card hidden">
+    <div class="section-title">Exécution</div>
+    <div class="recap" id="recap"></div>
+    <button class="btn btn-primary" id="btn-launch">▶ Lancer l'exécution</button>
+    <button class="btn" id="btn-back2">← Retour</button>
+    <div style="margin-top:16px">
+      <progress id="sql-prog" value="0" max="100"></progress>
+      <div class="logbox" id="sql-log" style="margin-top:10px"></div>
+    </div>
+    <div id="results" style="margin-top:14px"></div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = {
+  env:"{{ url_for('sql_runner.api_environments') }}",
+  queries:"{{ url_for('sql_runner.api_queries') }}",
+  connect:"{{ url_for('sql_runner.api_connect') }}",
+  disconnect:"{{ url_for('sql_runner.api_disconnect') }}",
+  execute:"{{ url_for('sql_runner.api_execute') }}",
+  streamBase:"/sql/api/stream/",
+  downloadBase:"/sql/api/download/",
+};
+let QUERIES=[], runId=null, ENVIRONMENTS=[], DEFAULT_ENV=null;
+const colors={ok:"#6ab023",warn:"#f59e0b",error:"#ef4444",info:"#a0a0b0"};
+
+function todayMinus(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
+function setStep(n){[1,2,3].forEach(i=>{
+  const w=document.getElementById("ws"+i);
+  w.classList.toggle("active",i===n);w.classList.toggle("done",i<n);
+  document.getElementById("step"+i).classList.toggle("hidden",i!==n);});}
+
+// ÉTAPE 1
+async function loadEnvs(){
+  const r=await fetch(API.env);const j=await r.json();
+  document.getElementById("env-select").innerHTML=j.environments.map(e=>`<option>${e}</option>`).join("");
+  await prefill();
+}
+async function prefill(){
+  const env=document.getElementById("env-select").value;
+  try{
+    const r=await fetch("/sql/api/prefill?environment="+encodeURIComponent(env));
+    const p=await r.json();
+    document.getElementById("ora_user").value=p.ora_user||"";
+    document.getElementById("iehe_user").value=p.iehe_user||"";
+    // Mots de passe : on n'affiche jamais la valeur, on indique seulement
+    // qu'elle est connue (placeholder). Laisser vide = credentials.ini sera utilisé.
+    document.getElementById("ora_pass").placeholder = p.ora_pass_set? "•••••••• (credentials.ini)":"";
+    document.getElementById("iehe_pass").placeholder = p.iehe_pass_set? "•••••••• (credentials.ini)":"";
+  }catch(e){}
+}
+document.getElementById("env-select").addEventListener("change",prefill);
+document.getElementById("btn-connect").addEventListener("click",async()=>{
+  const body={
+    environment:document.getElementById("env-select").value,
+    ora_user:document.getElementById("ora_user").value,
+    ora_pass:document.getElementById("ora_pass").value,
+    iehe_user:document.getElementById("iehe_user").value,
+    iehe_pass:document.getElementById("iehe_pass").value,
+  };
+  const st=document.getElementById("conn-status");
+  st.innerHTML='<div class="alert alert-info">Test en cours…</div>';
+  const r=await fetch(API.connect,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(j.error){st.innerHTML=`<div class="alert alert-err">${j.error}</div>`;return;}
+  const badges=Object.entries(j.results).map(([db,r])=>
+    `<span class="badge-conn ${r.ok?"ok":"ko"}">${r.ok?"✓":"✗"} ${db.toUpperCase()}</span>`).join(" ");
+  st.innerHTML=`<div class="alert ${j.ok?"alert-ok":"alert-err"}">${badges}</div>`;
+  if(j.ok){await loadQueries();setStep(2);}
+});
+
+// ÉTAPE 2
+async function loadQueries(){
+  const r=await fetch(API.queries);const j=await r.json();
+  QUERIES=j.queries;
+  ENVIRONMENTS=j.environments||[];
+  DEFAULT_ENV=j.default_env||ENVIRONMENTS[0]||"PROD";
+  const envOpts=(sel)=>ENVIRONMENTS.map(e=>`<option value="${e}" ${e===sel?"selected":""}>${e}</option>`).join("");
+  const cats={};QUERIES.forEach(q=>{(cats[q.category]=cats[q.category]||[]).push(q);});
+  const wrap=document.getElementById("query-accordions");
+  wrap.innerHTML=Object.entries(cats).map(([cat,qs])=>`
+    <div class="acc">
+      <div class="acc-head" onclick="this.nextElementSibling.classList.toggle('hidden')">
+        <span>${cat}</span><span class="cnt">${qs.length} requête(s)</span>
+      </div>
+      <div class="acc-body">
+        ${qs.map(q=>`<div class="q-row">
+          <input type="checkbox" class="qcb" data-name="${q.name}" data-freq="${q.freq}" data-db="${q.db}" checked onchange="onQ()">
+          <span class="nm">${q.name}</span>
+          <span class="tags">
+            <span class="tag ${q.freq==='quotidien'?'j':'s'}">${q.freq==='quotidien'?'quotidien':'hebdo'}</span>
+            <span class="tag">db: ${q.db}</span>
+            <select class="q-env ${DEFAULT_ENV.toLowerCase()}" data-name="${q.name}" onchange="onEnvChange(this)" title="Environnement d'exécution">
+              ${envOpts(DEFAULT_ENV)}
+            </select>
+          </span></div>`).join("")}
+      </div>
+    </div>`).join("");
+  document.getElementById("query-errors").innerHTML=(j.errors||[]).length?
+    `<div class="alert alert-warn">${j.errors.length} requête(s) ignorée(s) : ${j.errors.join(" · ")}</div>`:"";
+  onQ();
+}
+function selectedQ(){return [...document.querySelectorAll(".qcb:checked")];}
+function onQ(){
+  const sel=selectedQ();
+  document.getElementById("sel-count").textContent=`${sel.length} sélectionnée(s)`;
+  // Champs date selon fréquences
+  const freqs=new Set(sel.map(c=>c.dataset.freq));
+  const df=document.getElementById("date-fields");
+  let html="";
+  if(freqs.has("quotidien")) html+=`<div class="row" style="max-width:200px"><label>Date quotidienne</label><input type="date" id="date_quotidien" value="${todayMinus(1)}"></div>`;
+  if(freqs.has("hebdo")) html+=`<div class="row" style="max-width:200px"><label>Date hebdomadaire</label><input type="date" id="date_hebdo" value="${todayMinus(1)}"></div>`;
+  df.innerHTML=html;
+  // Warning IEHE sans creds : géré côté serveur ; ici simple info
+  const iehe=sel.some(c=>c.dataset.db==="iehe");
+  // Paramètres user (union)
+  const params={};
+  sel.forEach(c=>{const q=QUERIES.find(x=>x.name===c.dataset.name);
+    (q.params||[]).forEach(p=>{if(!params[p.name])params[p.name]=p;});});
+  const pf=document.getElementById("param-fields");
+  pf.innerHTML=Object.values(params).map(p=>{
+    let def=p.default||"";if(def==="TODAY")def=todayMinus(0).replaceAll("-","");if(def==="YESTERDAY")def=todayMinus(1).replaceAll("-","");
+    return `<div class="row" style="max-width:320px"><label>${p.prompt||p.name}</label><input type="text" class="pcb" data-name="${p.name}" value="${def}"></div>`;
+  }).join("");
+}
+document.getElementById("qsel-all").addEventListener("click",()=>{document.querySelectorAll(".qcb").forEach(c=>c.checked=true);onQ();});
+document.getElementById("qsel-none").addEventListener("click",()=>{document.querySelectorAll(".qcb").forEach(c=>c.checked=false);onQ();});
+// Colore le select selon l'environnement choisi.
+function onEnvChange(sel){
+  sel.classList.remove("prod","qualif");
+  sel.classList.add(sel.value.toLowerCase());
+}
+function setAllEnv(env){
+  document.querySelectorAll(".q-env").forEach(s=>{
+    if([...s.options].some(o=>o.value===env)){s.value=env;onEnvChange(s);}
+  });
+}
+document.getElementById("env-all-qualif").addEventListener("click",()=>setAllEnv("QUALIF"));
+document.getElementById("env-all-prod").addEventListener("click",()=>setAllEnv("PROD"));
+function queryEnvs(){
+  const m={};document.querySelectorAll(".q-env").forEach(s=>m[s.dataset.name]=s.value);return m;
+}
+document.getElementById("btn-disconnect").addEventListener("click",async()=>{
+  await fetch(API.disconnect,{method:"DELETE"});setStep(1);
+  document.getElementById("conn-status").innerHTML="";
+});
+
+// ÉTAPE 3
+document.getElementById("btn-to-exec").addEventListener("click",()=>{
+  const sel=selectedQ();
+  if(!sel.length){alert("Sélectionnez au moins une requête.");return;}
+  const oracle=sel.filter(c=>c.dataset.db!=="iehe").length, iehe=sel.length-oracle;
+  const dq=document.getElementById("date_quotidien"), dh=document.getElementById("date_hebdo");
+  // Répartition par environnement (parmi les requêtes cochées).
+  const envs=queryEnvs();
+  const byEnv={};sel.forEach(c=>{const e=envs[c.dataset.name];byEnv[e]=(byEnv[e]||0)+1;});
+  const envBreak=Object.entries(byEnv).map(([e,n])=>`${n} ${e}`).join(" · ");
+  document.getElementById("recap").innerHTML=
+    `Environnements : <b>${envBreak}</b><br>`+
+    (dq?`Date quotidien : <b>${dq.value}</b><br>`:"")+
+    (dh?`Date hebdo : <b>${dh.value}</b><br>`:"")+
+    `Requêtes : <b>${sel.length}</b> (${oracle} Oracle · ${iehe} IEHE)<br>`+
+    `Parallélisme : <b>${Math.min(sel.length,4)}</b> threads · Timeout : <b>${document.getElementById("timeout").value}s</b>`;
+  setStep(3);
+});
+document.getElementById("btn-back2").addEventListener("click",()=>setStep(2));
+
+document.getElementById("btn-launch").addEventListener("click",async()=>{
+  const sel=selectedQ();
+  const dq=document.getElementById("date_quotidien"), dh=document.getElementById("date_hebdo");
+  const dates={};
+  if(dq)dates.quotidien=dq.value.split("-").reverse().join("/");
+  if(dh)dates.hebdo=dh.value.split("-").reverse().join("/");
+  const params={};document.querySelectorAll(".pcb").forEach(i=>params[i.dataset.name]=i.value);
+  const allEnvs=queryEnvs();
+  const query_envs={};sel.forEach(c=>query_envs[c.dataset.name]=allEnvs[c.dataset.name]);
+  const body={queries:sel.map(c=>c.dataset.name),query_envs,dates,params,timeout:document.getElementById("timeout").value};
+  document.getElementById("sql-log").innerHTML="";
+  document.getElementById("results").innerHTML="";
+  document.getElementById("btn-launch").disabled=true;
+  const r=await fetch(API.execute,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(j.error){alert(j.error);document.getElementById("btn-launch").disabled=false;return;}
+  runId=j.run_id;openStream();
+});
+
+function appendLog(m){
+  const box=document.getElementById("sql-log");const d=document.createElement("div");
+  d.innerHTML=`<span class="log-ts">[${m.ts||""}]</span> <span style="color:${colors[m.level]||"#a0a0b0"}">${m.text.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}</span>`;
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+function openStream(){
+  const es=new EventSource(API.streamBase+runId);
+  es.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.type==="log") appendLog(m);
+    else if(m.type==="query") appendLog({ts:"",level:m.status==="error"?"error":(m.status==="running"?"info":"ok"),
+      text:(m.status==="running"?"▶ ":(m.status==="ok"?"✓ ":"✗ "))+m.name+(m.env?" ["+m.env+"]":"")+(m.msg?" — "+m.msg:"")});
+    else if(m.type==="progress") document.getElementById("sql-prog").value=m.pct;
+    else if(m.type==="done"){es.close();finish(m);}
+  };
+}
+function finish(m){
+  document.getElementById("btn-launch").disabled=false;
+  const res=document.getElementById("results");
+  if(m.success && m.files && m.files.length){
+    res.innerHTML=`<div class="alert alert-ok">✓ ${m.files.length} fichier(s) généré(s)</div>`+
+      `<table><thead><tr><th>Fichier</th><th>Téléchargement</th></tr></thead><tbody>`+
+      m.files.map(f=>`<tr><td>${f}</td><td><a class="dl-link" href="${API.downloadBase}${runId}/${encodeURIComponent(f)}">⬇ Télécharger</a></td></tr>`).join("")+
+      `</tbody></table>`;
+  } else if(m.success){
+    res.innerHTML=`<div class="alert alert-warn">Aucun fichier généré (résultats vides ou requêtes en erreur).</div>`;
+  } else {
+    res.innerHTML=`<div class="alert alert-err">Exécution terminée avec des erreurs — voir le log.</div>`;
+  }
+}
+
+loadEnvs();
+// Si credentials.ini fournit les identifiants (ou session active), l'écran de
+// connexion est superflu : on saute directement à la sélection des requêtes.
+fetch(API.queries).then(r=>r.json()).then(j=>{
+  if(j.ini_creds_available || j.connected){
+    if(j.ini_creds_available){
+      document.getElementById("ws1").style.display="none";
+      document.getElementById("btn-disconnect").style.display="none";
+    }
+    loadQueries();
+    setStep(2);
+  }
+});
+</script>
+{% endblock %}

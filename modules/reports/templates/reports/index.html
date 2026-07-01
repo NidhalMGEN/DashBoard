@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Rapports CODIR{% endblock %}
+{% block topbar_actions %}
+  <button class="btn btn-primary" id="btn-generate"
+          title="Régénère le rapport depuis le dernier flux (à utiliser après une exécution du pipeline)">🔄 Actualiser</button>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  .rep-layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+  @media(max-width:1000px){.rep-layout{grid-template-columns:1fr}}
+  .rep-item{padding:12px 14px;border:1px solid var(--border);border-radius:8px;
+            margin-bottom:8px;background:var(--bg-card);cursor:pointer}
+  .rep-item:hover{border-color:var(--mgen-green)}
+  .rep-item.active{border-color:var(--mgen-green);background:#1e2030}
+  .rep-item .fx{font-size:13px;font-weight:700}
+  .rep-item .mt{font-size:11px;color:var(--text-dim);margin-top:2px}
+  .rep-item .actions{margin-top:8px;display:flex;gap:8px}
+  .rep-item .actions a{font-size:11px;color:var(--info);text-decoration:underline}
+  iframe{width:100%;height:78vh;border:1px solid var(--border);border-radius:10px;background:#fff}
+  #gen-status{margin-bottom:12px}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div id="gen-status"></div>
+  <div class="rep-layout">
+    <div class="card">
+      <div class="section-title">Rapports archivés</div>
+      <div id="rep-list"><div style="color:var(--text-dim)">Chargement…</div></div>
+    </div>
+    <div>
+      <div class="section-title">Aperçu</div>
+      <iframe id="rep-frame" title="Aperçu rapport"></iframe>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API={list:"{{ url_for('reports.api_list') }}",gen:"{{ url_for('reports.api_generate') }}"};
+function viewUrl(n){return "{{ url_for('reports.view', name='__N__') }}".replace("__N__",encodeURIComponent(n));}
+function dlUrl(n){return "{{ url_for('reports.download', name='__N__') }}".replace("__N__",encodeURIComponent(n));}
+
+async function loadList(selectFirst){
+  const r=await fetch(API.list);const j=await r.json();
+  const box=document.getElementById("rep-list");
+  // Auto : si le rapport du dernier flux n'est pas encore généré, on le
+  // génère automatiquement (rapport toujours basé sur le dernier flux).
+  if(j.source_available && !j.latest_report_ready){
+    await generate(true);
+    return;
+  }
+  if(!j.reports.length){
+    box.innerHTML='<div style="color:var(--text-dim)">'+
+      (j.source_available?'Génération du dernier flux…':'Aucun flux source dans Output/. Lancez le pipeline.')+'</div>';
+    return;
+  }
+  box.innerHTML=j.reports.map((rp,i)=>{
+    const isLatest=rp.flux===j.latest_flux;
+    return `<div class="rep-item ${i===0&&selectFirst?'active':''}" onclick="showReport('${rp.name}',this)">
+      <div class="fx">Flux ${rp.flux} ${isLatest?'<span style="color:var(--mgen-green);font-size:10px">● dernier</span>':''}</div>
+      <div class="mt">${rp.mtime} · ${rp.size_kb} Ko${rp.has_pdf?' · PDF dispo':''}</div>
+      <div class="actions">
+        <a href="${dlUrl(rp.name)}" onclick="event.stopPropagation()">⬇ HTML</a>
+        ${rp.has_pdf?`<a href="${dlUrl(rp.name.replace('.html','.pdf'))}" onclick="event.stopPropagation()">⬇ PDF</a>`:''}
+      </div>
+    </div>`;}).join("");
+  if(selectFirst) document.getElementById("rep-frame").src=viewUrl(j.reports[0].name);
+}
+
+// Génère depuis le dernier flux puis affiche.
+async function generate(silent){
+  const st=document.getElementById("gen-status");
+  if(!silent) st.innerHTML='<div class="alert alert-info">Génération en cours…</div>';
+  document.getElementById("btn-generate").disabled=true;
+  try{
+    const r=await fetch(API.gen,{method:"POST"});const j=await r.json();
+    if(j.error){st.innerHTML=`<div class="alert alert-err">${j.error}</div>`;}
+    else{
+      st.innerHTML=`<div class="alert alert-ok">✓ Rapport à jour (dernier flux) : ${j.name}</div>`;
+      await loadList(true);
+    }
+  }catch(e){st.innerHTML='<div class="alert alert-err">Erreur de génération.</div>';}
+  document.getElementById("btn-generate").disabled=false;
+}
+function showReport(name,el){
+  document.querySelectorAll(".rep-item").forEach(x=>x.classList.remove("active"));
+  if(el) el.classList.add("active");
+  document.getElementById("rep-frame").src=viewUrl(name);
+}
+// Bouton « Actualiser » : force la régénération depuis le dernier flux
+// (typiquement après une exécution du pipeline).
+document.getElementById("btn-generate").addEventListener("click",()=>generate(false));
+loadList(true);
+</script>
+{% endblock %}

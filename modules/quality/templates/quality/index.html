@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Qualité des données{% endblock %}
+{% block topbar_actions %}
+  <a class="btn" id="btn-export" href="{{ url_for('quality.api_export') }}">⬇ Exporter (Excel)</a>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  .q-cards{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+  .q-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;min-width:200px}
+  .q-card .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase}
+  .q-card .val{font-size:30px;font-weight:800;margin-top:6px}
+  .sev{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+  .sev.ok{background:var(--success)} .sev.warn{background:var(--warning)} .sev.err{background:var(--danger)}
+  td.num{text-align:right}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div id="degraded" class="alert alert-err" style="display:none"></div>
+  <div class="q-cards" id="q-cards"></div>
+  <div class="card">
+    <div class="section-title">Anomalies du dernier flux</div>
+    <div class="table-wrap" id="q-table"><div style="color:var(--text-dim)">Chargement…</div></div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function load(){
+  const r=await fetch("{{ url_for('quality.api_quality') }}");
+  const j=await r.json();
+  if(!j.available){
+    document.getElementById("degraded").style.display="block";
+    document.getElementById("degraded").textContent="⚠ Base inaccessible ou aucun flux exploitable.";
+    document.getElementById("q-table").innerHTML="";
+    return;
+  }
+  const fmtPct=v=>v==null?"":` (${v}%)`;
+  document.getElementById("q-cards").innerHTML=
+    `<div class="q-card"><div class="lbl">Données OK</div><div class="val" style="color:var(--success)">${j.score_ok!=null?j.score_ok+' %':'—'}</div></div>`+
+    `<div class="q-card"><div class="lbl">Données KO</div><div class="val" style="color:var(--danger)">${j.score_ko!=null?j.score_ko+' %':'—'}</div></div>`+
+    `<div class="q-card"><div class="lbl">Anomalies suivies</div><div class="val">${j.anomalies.length}</div></div>`;
+  const esc=s=>String(s==null?"—":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+  document.getElementById("q-table").innerHTML=`<table><thead><tr>
+    <th>Anomalie</th><th class="num">Nombre</th><th class="num">%</th></tr></thead><tbody>`+
+    j.anomalies.map(a=>`<tr><td><span class="sev ${a.level}"></span>${esc(a.label)}</td>
+      <td class="num">${esc(a.nombre)}</td><td class="num">${a.pct==null?'—':esc(a.pct)+' %'}</td></tr>`).join("")+
+    `</tbody></table>`;
+}
+load();
+</script>
+{% endblock %}
