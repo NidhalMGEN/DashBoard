@@ -1177,9 +1177,12 @@ def calcul_kpi_tp_ged(prefix: str) -> Dict[str, Any]:
         }
 
     # Normalisation colonnes (load_csv les met déjà en minuscules)
+    # code_societe : le détail conserve désormais le nom d'origine New_S
+    # (code_soc_appart) plutôt qu'une colonne renommée dédiée.
     df = df.copy()
+    col_soc = next((c for c in ("code_soc_appart", "code_societe", "code_soc") if c in df.columns), "code_soc_appart")
     for col in ("statut_rapprochement", "statut_final", "correction_manuelle",
-                "present_ged", "code_societe", "offre", "type_assure"):
+                "present_ged", col_soc, "offre", "type_assure"):
         if col not in df.columns:
             df[col] = ""
         df[col] = df[col].fillna("").astype(str).str.strip()
@@ -1201,7 +1204,7 @@ def calcul_kpi_tp_ged(prefix: str) -> Dict[str, Any]:
 
     # Ventilation par société
     par_soc: Dict[str, Dict[str, Any]] = {}
-    for soc, grp in df.groupby("code_societe"):
+    for soc, grp in df.groupby(col_soc):
         base = len(grp)
         trouves = int((grp["present_ged"] == "OUI").sum())
         rapp_final = int((grp["statut_final"] == "RAPPROCHE").sum())

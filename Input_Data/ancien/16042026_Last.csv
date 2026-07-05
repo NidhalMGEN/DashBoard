@@ -1,0 +1,3 @@
+"id","realm_id","idkpep","email","email_other","channel","first_name","last_name","middlename","phonenumber","birthdate","type","origincreation","client","date_evt","heure_evt"
+"f85abc20-cf4d-4286-afb4-52a16c378f94","010","KPEP00000286816830","julien.deschamps3@ac-bordeaux.fr","","","Julien","DESCHAMPS","","+33622403161","1978-10-03","LOGIN","MIGRATION","mgen-epl-app-oidc","2025-11-06","17:38:26"
+"fe0c69cf-fe64-4e35-8d91-e5e2ac743e45","010","KPEP00000471467103",NULL,"","","Yacine","MOKADEM","","+33630246930","2002-02-22","CREATION","MIGRATION",NULL,"2025-07-10","08:26:40"

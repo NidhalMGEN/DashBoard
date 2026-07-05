@@ -36,6 +36,7 @@ class PipelineRunner:
         Step("detail", "Fichiers détail", "03_generation_fichiers_detail.py"),
         Step("retry",  "Retry IEHE KO",   "06_iehe_retry.py"),
         Step("ged",    "Contrôle GED",    "07_controle_tp_ged.py",            conditional=True),
+        Step("ged_retry", "Retry TP GED KO", "08_tp_ged_retry.py"),
         Step("kpi",    "Calcul KPI",      "02_calcul_kpi.py"),
         Step("bdd",    "Chargement BDD",  "04_chargement_bdd.py"),
     ]
@@ -64,6 +65,7 @@ class PipelineRunner:
         "detail": {"duration_est": 120, "deps": ["iehe"],           "desc": "Fichiers détail par segment"},
         "retry":  {"duration_est": 90,  "deps": ["iehe"],           "desc": "Retry des IEHE en KO"},
         "ged":    {"duration_est": 120, "deps": [],                 "desc": "Contrôle TP / GED (conditionnel)"},
+        "ged_retry": {"duration_est": 90, "deps": ["ged"],          "desc": "Retry des TP GED en KO (re-vérif IEHE puis GED)"},
         "kpi":    {"duration_est": 120, "deps": ["iehe", "detail"], "desc": "Calcul des KPI (Modele_clean.json)"},
         "bdd":    {"duration_est": 300, "deps": ["kpi"],            "desc": "Chargement / historisation BDD"},
     }
@@ -133,7 +135,7 @@ class PipelineRunner:
         scripts_dir = str(self.base_dir / "Scripts")
         existing = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = scripts_dir + os.pathsep + existing if existing else scripts_dir
-        if step.id in ("iehe", "retry"):
+        if step.id in ("iehe", "retry", "ged_retry"):
             env["PG_USER"]     = self.pg_user
             env["PG_PASSWORD"] = self.pg_password
         # Script 04 (bdd) : NE PAS injecter PG_USER/PG_PASSWORD — credentials

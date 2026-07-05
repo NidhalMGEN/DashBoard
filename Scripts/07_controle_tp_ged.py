@@ -461,9 +461,6 @@ def build_detail(
     col_type = get_col(df, ["type_assure", "typeassure"])
     col_soc = get_col(df, ["code_soc_appart", "code_societe", "code_soc"])
     col_offre = get_col(df, ["offre", "code_offre"])
-    col_nom = get_col(df, ["nom_long", "nom"])
-    col_prenom = get_col(df, ["prenom", "firstname"])
-    col_ctr = get_col(df, ["num_ctr_indiv", "contrat"])
 
     required = {"num_personne": col_pers, "type_assure": col_type, "offre": col_offre}
     missing = [k for k, v in required.items() if v is None]
@@ -508,17 +505,14 @@ def build_detail(
         )
         correction_appliquee = "OUI" if statut_final != statut else "NON"
 
-        rows.append(
+        # On conserve toutes les colonnes d'origine New_S telles quelles, et on
+        # ajoute uniquement les colonnes calculées par le contrôle GED (pas de
+        # doublon avec les colonnes déjà présentes dans New_S).
+        row: Dict[str, Any] = r.to_dict()
+        row.update(
             {
                 "date_flux": prefix,                         # DDMMYYYY
                 "date_flux_iso": date_flux_str,              # YYYY-MM-DD
-                "num_personne": num_pers,
-                "nom_long": str(r.get(col_nom, "") or "").strip() if col_nom else "",
-                "prenom": str(r.get(col_prenom, "") or "").strip() if col_prenom else "",
-                "type_assure": type_assure,
-                "code_societe": code_soc,
-                "offre": offre,
-                "num_contrat": str(r.get(col_ctr, "") or "").strip() if col_ctr else "",
                 "kpep_reference": kpep_ref_u,
                 "motif_kpep": motif_kpep,
                 "present_ged": present_ged,
@@ -529,6 +523,7 @@ def build_detail(
                 "commentaire": commentaire,
             }
         )
+        rows.append(row)
 
     return pd.DataFrame(rows)
 
@@ -668,6 +663,10 @@ def main() -> int:
 
     # --- Export KO (NON_RAPPROCHE avant ou après correction) ---
     df_ko = df_detail[df_detail["statut_final"] == "NON_RAPPROCHE"].copy() if not df_detail.empty else df_detail
+    # Colonnes de suivi retry (mêmes noms que {PREFIX}_IEHE_KO.csv) pour
+    # permettre à 08_tp_ged_retry.py de re-vérifier IEHE puis GED plus tard.
+    df_ko["statut_retry"] = "KO"
+    df_ko["date_derniere_verif"] = prefix
     f_ko = OUTPUT_DIR / f"{prefix}_TP_GED_KO.csv"
     df_ko.to_csv(f_ko, index=False, sep=output_sep, encoding="utf-8-sig")
     print(f"   ✅ KO écrit    : {f_ko.name} ({len(df_ko)} lignes)")
