@@ -108,8 +108,6 @@ OFFRE_GROUPES: Dict[str, tuple] = {
     "INSC2SG":     (30,   "INSC2SG + INSC2SP + INSC2SS"),
     "INSEFFBRED":  (2,    "INSEFFBRED + INSEFFICIE"),
     "INSMAEEREF":  (4,    "INSMAEEPNR+INSMAEEREF + INSMAEERET"),
-    # Demande PILLON Laurence (30/06) : INSMALT001 en ordre 33, total en 34.
-    "INSMALT001":  (33,   None),
     "INSMAS001":   (22,   None),
     # Regroupement INSMTE* — total porté par INSMTE0001.
     "INSMTE0001":  (31,   "INSMTE0001 + INSMTE1001"),
@@ -137,35 +135,15 @@ OFFRE_GROUPES: Dict[str, tuple] = {
 }
 
 
-def _groupes_effectifs(offres_presentes: set) -> Dict[str, tuple]:
-    """OFFRE_GROUPES recalculé sur les offres réellement présentes dans le flux.
-
-    Si l'offre clé d'un regroupement a disparu du flux (ex: INSMAEEREF tombée
-    à 0 assuré au 30/06), le total, le libellé et l'ordre d'affichage sont
-    portés par le premier membre du groupe encore présent — sinon le
-    regroupement disparaîtrait silencieusement des synthèses Feuil4/Feuil7.
-    """
-    eff: Dict[str, tuple] = {}
-    for key, (num, label) in OFFRE_GROUPES.items():
-        carrier = key
-        if key not in offres_presentes:
-            if not label:
-                continue  # offre standalone absente du flux
-            presents = [m for m in (x.strip() for x in label.split("+"))
-                        if m in offres_presentes]
-            if not presents:
-                continue  # groupe entièrement absent du flux
-            carrier = presents[0]
-            print(f"  [WARN] Offre clé '{key}' absente du flux → regroupement "
-                  f"'{label}' porté par '{carrier}'")
-        eff[carrier] = (num, label)
-    return eff
+def _ordre_affichage(offre) -> Optional[int]:
+    """Ordre d'affichage configuré pour une offre (None si non défini)."""
+    return OFFRE_GROUPES.get(offre, (None, None))[0]
 
 
-def _tri_offre_key(offre, groupes: Dict[str, tuple]):
+def _tri_offre_key(offre):
     """Clé de tri des offres : ordre croissant ; offres sans ordre (clé vide)
     reléguées en fin de bloc (départage alphabétique pour la reproductibilité)."""
-    ordre = groupes.get(offre, (None, None))[0]
+    ordre = _ordre_affichage(offre)
     return (ordre is None, ordre or 0, str(offre))
 
 # ─── FORMATS EXCEL ────────────────────────────────────────────────────────────
@@ -673,16 +651,12 @@ def write_feuil4(wb, df: pd.DataFrame) -> None:
     )
     total_right = pivot_right[col_nonr].sum()
 
-    # Regroupements recalculés sur les offres présentes : si une offre clé a
-    # disparu du flux, son groupe est porté par le 1er membre encore présent.
-    groupes = _groupes_effectifs({str(o) for o in pivot_right[col_offre].dropna()})
-
     # Tri des lignes de données par ordre d'affichage croissant (colonne K).
     # Les offres sans ordre (clé K vide) sont reléguées en bas du bloc.
     # NB : on trie l'ordre d'ÉCRITURE (et non les cellules a posteriori) afin que
     # les formules de regroupement (col I) référencent les bonnes lignes finales.
     rows_sorted = sorted(pivot_right.to_dict("records"),
-                         key=lambda r: _tri_offre_key(r[col_offre], groupes))
+                         key=lambda r: _tri_offre_key(r[col_offre]))
 
     _write_section_filter(ws, 2, "type assure", "ASSURE", col_start=RIGHT)
     _write_header(ws, 4, ["Étiquettes de lignes", "Somme de nb pp non radie", "% du total ASSURE"],
@@ -709,7 +683,7 @@ def write_feuil4(wb, df: pd.DataFrame) -> None:
     # 2ᵉ passe : totaux de regroupement (colonne I = formule Excel =G..+G..),
     # libellé du regroupement (colonne J) et ordre d'affichage (colonne K).
     for offre, data_row in offre_rows.items():
-        grp_num, grp_label = groupes.get(offre, (None, None))
+        grp_num, grp_label = OFFRE_GROUPES.get(offre, (None, None))
         if grp_label:
             membres = [m.strip() for m in grp_label.split("+")]
             if len(membres) > 1:
@@ -753,20 +727,16 @@ def write_feuil7(wb, df: pd.DataFrame) -> None:
     )
     total = pivot[col_nonr].sum()
 
-    # Regroupements recalculés sur les offres présentes : si une offre clé a
-    # disparu du flux, son groupe est porté par le 1er membre encore présent.
-    groupes = _groupes_effectifs({str(o) for o in pivot[col_offre].dropna()})
-
     # Tri des lignes de données par ordre d'affichage croissant (colonne F) ;
     # offres sans ordre (clé F vide) reléguées en bas. Tri de l'ordre d'écriture
     # pour que les formules de la colonne D référencent les bonnes lignes.
     rows_sorted = sorted(pivot.to_dict("records"),
-                         key=lambda r: _tri_offre_key(r[col_offre], groupes))
+                         key=lambda r: _tri_offre_key(r[col_offre]))
 
-    # Offres "membres" d'un regroupement (toutes sauf la porteuse) : pas de
-    # ligne de synthèse propre (Total / Formule / ordre).
+    # Offres "membres" d'un regroupement (toutes sauf la clé) : pas de ligne
+    # de synthèse propre (Total / Formule / ordre).
     membres_groupes = set()
-    for key, (_grp_num, grp_label) in groupes.items():
+    for key, (_grp_num, grp_label) in OFFRE_GROUPES.items():
         if grp_label:
             for m in (x.strip() for x in grp_label.split("+")):
                 if m != key:
@@ -790,7 +760,7 @@ def write_feuil7(wb, df: pd.DataFrame) -> None:
         if offre in membres_groupes:
             continue  # offre membre : agrégée dans le total de sa clé
 
-        grp_num, grp_label = groupes.get(offre, (None, None))
+        grp_num, grp_label = OFFRE_GROUPES.get(offre, (None, None))
         membres = [m.strip() for m in grp_label.split("+")] if grp_label else []
         dval = None
         if len(membres) > 1:
@@ -814,9 +784,7 @@ def write_feuil7(wb, df: pd.DataFrame) -> None:
     dtot = ws.cell(row=tr, column=4, value=f"=B{tr}")
     dtot.font = _TOTAL_FONT; dtot.fill = _TOTAL_FILL
     dtot.alignment = _CENTER; dtot.number_format = FMT_INT
-    # Ordre du total = max des ordres réellement affichés + 1 (les offres
-    # configurées mais absentes du flux ne créent pas de trou de numérotation).
-    orders = [g[0] for g in groupes.values() if g[0] is not None]
+    orders = [g[0] for g in OFFRE_GROUPES.values() if g[0] is not None]
     if orders:
         ftot = ws.cell(row=tr, column=6, value=max(orders) + 1)
         ftot.font = _TOTAL_FONT; ftot.fill = _TOTAL_FILL; ftot.alignment = _CENTER

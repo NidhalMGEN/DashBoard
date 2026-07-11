@@ -938,6 +938,7 @@ def fetch_runs_up_to(date_str: str, limit: int = 30, base_dir=None) -> dict:
 
 
 def build_dashboard_for_date(date_str: str, limit: int = 30, base_dir=None) -> dict:
+
     data = fetch_runs_up_to(date_str, limit=limit, base_dir=base_dir)
     if not data["available"]:
         return {"available": False, "error": data["error"], "freshness_hours": None,

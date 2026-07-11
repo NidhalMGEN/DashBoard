@@ -5,6 +5,7 @@ ajoutant la sélection de scripts (exécution partielle) et le mode pipeline
 complet. L'état du runner est porté par le module (un run à la fois).
 """
 
+
 from __future__ import annotations
 
 import json
@@ -143,7 +144,7 @@ def error_decision():
         return jsonify({"ok": True})
     return jsonify({"error": "Aucun pipeline actif"}), 400
 
-
+# pop le message de queue le trnasomre en json
 @bp.route("/stream")
 def stream():
     def gen():
@@ -177,11 +178,12 @@ def resume():
 @bp.route("/status")
 def status():
     if _runner is None:
-        return jsonify({"state": "idle", "progress": 0, "steps": []})
+        return jsonify({"state": "idle", "progress": 0, "steps": [], "pause": None})
     steps = [{"id": s.id, "label": s.label, "status": s.status.value}
              for s in _runner.STEPS]
     return jsonify({
         "state": "running" if _runner.running else ("done" if _runner.success else "error"),
         "progress": _runner.progress,
         "steps": steps,
+        "pause": _runner.pause_info,
     })

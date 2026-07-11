@@ -100,6 +100,7 @@ class PipelineRunner:
         self.unattended = unattended
         self._pause_event: threading.Event | None = None
         self._current_pause_id: str | None = None
+        self._pause_message: str | None = None
         self._error_event: threading.Event | None = None
         self._error_decision: str = "abort"
         self.log_lines: list[str] = []  # journal complet du run (historique)
@@ -187,10 +188,12 @@ class PipelineRunner:
         self._pause_event      = threading.Event()
         self._current_pause_id = pause_id
         msg = "Déposez CM.csv et CK.csv dans Input_Data/ puis cliquez « Continuer »"
+        self._pause_message    = msg
         self.emit_pause(pause_id, msg)
         self.emit_log(f"⏸ PAUSE — {msg}", level="pause")
         self._pause_event.wait()
         self._current_pause_id = None
+        self._pause_message    = None
         self._pause_event = None
         # Débloque le input() du script Python
         try:
@@ -210,6 +213,15 @@ class PipelineRunner:
     def resume(self, pause_id: str):
         if self._pause_event and self._current_pause_id == pause_id:
             self._pause_event.set()
+
+    @property
+    def pause_info(self) -> dict | None:
+        """État de pause courant pour l'IHM : None si aucune pause active,
+        sinon {"id": ..., "message": ...}. Permet de restaurer la bannière
+        de pause après un rechargement de page (cf. /pipeline/status)."""
+        if self._current_pause_id is None:
+            return None
+        return {"id": self._current_pause_id, "message": self._pause_message}
 
     # ── Décision sur erreur (Ignorer et continuer / Abandonner) ────────
     def _ask_error_decision(self, step: Step) -> str:
@@ -320,11 +332,13 @@ class PipelineRunner:
         self._current_pause_id = "reliquat"
         msg = ("Récupérez les requêtes SQL dans Output/, exécutez-les sur la BDD CIAM, "
                "déposez les résultats dans Input_Data/ puis cliquez « Continuer »")
+        self._pause_message    = msg
         self.emit_pause("reliquat", msg)
         self.emit_log(f"⏸ PAUSE RELIQUAT — {msg}", level="pause")
         ev.wait()
         self._pause_event      = None
         self._current_pause_id = None
+        self._pause_message    = None
 
     # ── Étape conditionnelle : présence du fichier déclencheur ────────
     def _trigger_present(self, step_id: str) -> bool:

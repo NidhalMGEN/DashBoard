@@ -116,6 +116,7 @@ const API = {
   resume:  "{{ url_for('pipeline.resume') }}",
   credStatus: "{{ url_for('pipeline.api_credentials_status') }}",
   errorDecision: "{{ url_for('pipeline.error_decision') }}",
+  status: "{{ url_for('pipeline.status') }}",
 };
 const LS_KEY = "pipeline_selection";
 let SCRIPTS = [];
@@ -151,7 +152,42 @@ async function checkCreds(){
     }
   }catch(e){}
 }
-checkCreds();
+
+// Au chargement de la page : si un pipeline tourne déjà côté serveur (ex.
+// onglet suspendu/rechargé par le navigateur pendant une pause), on restaure
+// la vue pipeline en l'état plutôt que de reproposer l'écran de connexion.
+
+async function bootstrap(){
+  try{
+    const r=await fetch(API.status);
+    const j=await r.json();
+    if(j.state==="running"){
+      await restoreRunningView(j);
+      return;
+    }
+  }catch(e){/* API indisponible : on retombe sur le flux normal */}
+  checkCreds();
+}
+
+async function restoreRunningView(j){
+  document.getElementById("view-login").style.display="none";
+  document.getElementById("view-pipeline").style.display="block";
+  await loadScripts();
+  document.getElementById("btn-run-sel").disabled=true;
+  document.getElementById("btn-run-full").disabled=true;
+  (j.steps||[]).forEach(s=>{
+    if(s.status && s.status!=="pending"){
+      setStatus(s.id,s.status,STATUS_TXT[s.status]||s.status);
+    }
+  });
+  nbTotal = selectedRunCount();
+  nbDone  = (j.steps||[]).filter(s=>s.status==="ok"||s.status==="skip").length;
+  updateProg(j.progress);
+  if(j.pause) showPause(j.pause);
+  openStream(true);
+}
+
+bootstrap();
 
 // ---- Catalogue scripts ----
 async function loadScripts(){
@@ -242,8 +278,8 @@ const STATUS_TXT={running:"en cours…",ok:"✓ terminé",error:"✗ erreur",ski
 
 // ---- SSE ----
 let nbDone=0,nbTotal=0;
-function openStream(){
-  nbTotal=selectedRunCount();nbDone=0;updateProg(0);
+function openStream(skipReset){
+  if(!skipReset){nbTotal=selectedRunCount();nbDone=0;updateProg(0);}
   const es=new EventSource(API.stream);
   es.onmessage=(e)=>{
     const m=JSON.parse(e.data);
@@ -263,6 +299,7 @@ function selectedRunCount(){
   // Le mode "full" exécute tout ; sinon nombre de cochés.
   return selectedIds().length || SCRIPTS.length;
 }
+
 function appendLog(m){
   const box=document.getElementById("logbox");
   const isSec = m.text.startsWith("▶ Démarrage");
