@@ -791,7 +791,7 @@ def main() -> int:
         prefix=prefix,
     )
     write_ged_sql_batches(liste,OUTPUT_DIR,prefix)
-    input("\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet prefix_TP_GED")
+    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED.csv")
     path_GED = INPUT_DIR / f"{prefix}_TP_GED.csv"
     SaveToDB(liste, prefix)
 
