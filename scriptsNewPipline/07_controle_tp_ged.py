@@ -79,6 +79,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import sys
+from datetime import datetime
+
+import psycopg
 
 
 # -----------------------------
@@ -112,6 +116,16 @@ BATCH_SIZE_SQL = 20000
 GED_SQL_TEMPLATE = "00-Export_GED_KPEP_With_Distinct.sql"
 
 
+
+
+# Config BDD (IEHE)
+PG_HOST = "bdd-X0ED0550.alias"
+PG_PORT = 5559
+PG_DB = "choregie_db"
+PG_USER     = os.environ.get("PG_USER", "")
+PG_PASSWORD = os.environ.get("PG_PASSWORD", "")
+GED_SCHEMA = "iehe"
+GED_TABLE  = "refkpep"
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
@@ -451,10 +465,13 @@ def build_detail(
 
 
         # Si pas de KPEP IEHE, on ne peut pas statuer : NON_RAPPROCHE avec motif
+
+        # manage this as non found and like store the reeson because  the nb of ko show also the reseaon 
+        #cause its elegible
         if  kpep_ref_u:
             liste.append(kpep_ref_u)
 
-    return liste
+    return set(liste)
 
 
 # -----------------------------
@@ -543,6 +560,153 @@ def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -
 # -----------------------------
 # MAIN
 # -----------------------------
+
+
+
+def load_concat_csv_by_pattern(folder: Path, pattern: str, label: str = "") -> Tuple[Optional[pd.DataFrame], int]:
+    files = sorted(folder.glob(pattern))
+    if not files:
+        return None, 0
+
+    dfs: List[pd.DataFrame] = []
+    for f in files:
+        dfp = load_csv(f, sep=None)
+        if dfp is None or dfp.empty:
+            continue
+        dfp = normalize_cols(dfp)
+        dfs.append(dfp)
+
+    if not dfs:
+        return None, 0
+
+    df = pd.concat(dfs, ignore_index=True)
+    print(f"   ✅ {label} chargé via pattern: {len(files)} fichier(s), {len(df)} ligne(s)")
+    return df, len(files)
+
+
+def find_latest_new_s(folder: Path) -> Tuple[Optional[Path], Optional[str]]:
+    candidates = list(folder.glob("*_New_S.csv"))
+    if not candidates:
+        return None, None
+
+    best: Optional[Path] = None
+    best_dt = None
+
+    for f in candidates:
+        prefix = f.name.split("_")[0]
+        if re.fullmatch(r"\d{8}", prefix):
+            try:
+                dt = pd.to_datetime(prefix, format="%d%m%Y")
+            except Exception:
+                dt = None
+            if dt is not None and (best_dt is None or dt > best_dt):
+                best_dt = dt
+                best = f
+
+    if best is None:
+        best = sorted(candidates)[0]
+        prefix = best.name.split("_")[0] if "_" in best.name else "UNKNOWN"
+        return best, prefix
+
+    return best, best.name.split("_")[0]
+
+
+
+def connect_pg(host, port, db):
+    try:
+        return psycopg.connect(host=host, port=port, dbname=db, user=PG_USER, password=PG_PASSWORD, connect_timeout=3)
+    except:
+        return None
+
+#one connection
+def connect_iehe_auto():
+    hosts = ["bdd-X0ED0550.alias", "100.54.41.6"]
+    ports = [5559, 5432]
+    dbs = ["choregie_db", "postgres"]
+    
+    for h in hosts:
+        for p in ports:
+            for d in dbs:
+                try: 
+                    conn = connect_pg(h, p, d)
+                    if conn: return conn
+                except: continue
+    return None
+
+
+
+def SaveKpepFisrt_Attempt(name, prefix):
+    conn = connect_iehe_auto()
+    if not conn:
+        return
+
+    cur = conn.cursor()
+
+    today = date.today()
+    formatted = today.strftime("%d%m%Y")
+    cur.execute(
+            f"""
+            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
+            (flux_id, kpep, date_found)
+            VALUES (%s, %s,  %s)
+            """,
+            (prefix, name, formatted)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def SaveKpep(name, prefix):
+    conn = connect_iehe_auto()
+    if not conn:
+        return
+
+    cur = conn.cursor()
+
+    # Check if already exists
+    cur.execute(
+        f"""
+        SELECT 1
+        FROM {GED_SCHEMA}.{GED_TABLE}
+        WHERE flux_id = %s
+        AND kpep = %s
+        """,
+        (prefix, name)
+    )
+
+    exists = cur.fetchone()
+
+    # Insert only if not found
+    if not exists:
+        cur.execute(
+            f"""
+            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
+            (flux_id, kpep, date_found)
+            VALUES (%s, %s, NULL)
+            """,
+            (prefix, name)
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    
+
+
+def SaveToDB(Liste, prefix):
+    df_GED , _ = load_concat_csv_by_pattern(INPUT_DIR, f"{prefix}*TP_GED*.csv", label="GED")
+    if df_GED == None :
+        return
+    df_GED["idepsp"].apply(SaveKpepFisrt_Attempt,args=(prefix,))
+    for kpep in Liste:
+        SaveKpep(kpep,prefix)
+    
+        
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Contrôle journalier des cartes TP en GED"
@@ -628,7 +792,8 @@ def main() -> int:
     )
     write_ged_sql_batches(liste,OUTPUT_DIR,prefix)
     input("\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet prefix_TP_GED")
-    
+    path_GED = INPUT_DIR / f"{prefix}_TP_GED.csv"
+    SaveToDB(liste, prefix)
 
     return 0
 
