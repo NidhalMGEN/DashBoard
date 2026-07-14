@@ -119,13 +119,13 @@ GED_SQL_TEMPLATE = "00-Export_GED_KPEP_With_Distinct.sql"
 
 
 # Config BDD (IEHE)
-PG_HOST = os.getenv("PG_HOST", "bdd-T0XX0052.alias")
-PG_PORT = os.getenv("PG_PORT", "5577")
-PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
+PG_HOST = "bdd-X0ED0550.alias"
+PG_PORT = 5559
+PG_DB = "choregie_db"
 PG_USER     = os.environ.get("PG_USER", "")
 PG_PASSWORD = os.environ.get("PG_PASSWORD", "")
-GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
-GED_TABLE  = "suivi_tp_ged"
+GED_SCHEMA = "iehe"
+GED_TABLE  = "refkpep"
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
@@ -544,7 +544,7 @@ def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -
     for i in range(0, len(kpeps), BATCH_SIZE_SQL):
         chunk = kpeps[i : i + BATCH_SIZE_SQL]
         batch_index = (i // BATCH_SIZE_SQL) + 1
-        out_name = f"{prefix}_REQ_TP_GED_KPEP_Part{batch_index}.sql"
+        out_name = f"{prefix}_REQ_TP_GED_RETRY_KPEP_Part{batch_index}.sql"
         values_str = "'" + "','".join(chunk) + "'"
         final_sql = base_sql_template.replace("__LISTE_IDS__", values_str)
         header = f"/* BATCH {batch_index} | GENERATED {datetime.now()} | SOURCE: {prefix} | NB: {len(chunk)} */\n"
@@ -563,16 +563,8 @@ def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -
 
 
 
-def load_concat_csv_by_pattern(
-    folder: Path,
-    pattern: str,
-    label: str = "",
-    exclude: Optional[str] = None,
-) -> Tuple[Optional[pd.DataFrame], int]:
-    """`exclude` : motif (insensible à la casse) écarté des noms de fichiers."""
+def load_concat_csv_by_pattern(folder: Path, pattern: str, label: str = "") -> Tuple[Optional[pd.DataFrame], int]:
     files = sorted(folder.glob(pattern))
-    if exclude:
-        files = [f for f in files if exclude.lower() not in f.name.lower()]
     if not files:
         return None, 0
 
@@ -628,9 +620,9 @@ def connect_pg(host, port, db):
 
 #one connection
 def connect_GED_auto():
-    hosts = ["bdd-T0XX0052.alias"]
-    ports = [5577]
-    dbs = ["supervisionpsc_db"]
+    hosts = ["bdd-X0ED0550.alias", "100.54.41.6"]
+    ports = [5559, 5432]
+    dbs = ["choregie_db", "postgres"]
     
     for h in hosts:
         for p in ports:
@@ -641,161 +633,66 @@ def connect_GED_auto():
                 except: continue
     return None
 
-
-
-def SaveKpepFisrt_Attempt(name, prefix , cur, formatted):
-    today = date.today()
-    cur.execute(
-            f"""
-            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-            (flux_id, kpep, date_found)
-            VALUES (%s, %s,  %s)
-            """,
-            (prefix, name, formatted)
-    )
-def SaveKpep(name, prefix, cur):
-    cur.execute(
-        f"""
-        INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-        (flux_id, kpep, date_found)
-        VALUES (%s, %s, NULL)
-        ON CONFLICT (flux_id, kpep) DO NOTHING
-        """,
-        (prefix, name)
-    )
     
 
 
-def SaveToDB(Liste, prefix):
+def getNotFound():
+    conn = connect_GED_auto()
+    if not conn:
+        return
+
+    cur = conn.cursor()
+    cur.execute( f"""
+        SELECT kpep
+        FROM {GED_SCHEMA}.{GED_TABLE}
+        WHERE date_found IS NULL
+        and TO_DATE(flux_id, 'DDMMYYYY') >= CURRENT_DATE - INTERVAL '30 days';
+        """,
+        )
+    kpeps = [row[0] for row in cur.fetchall()]
+
+    formatted = date.today().strftime("%d%m%Y")
+
+    write_ged_sql_batches(kpeps,OUTPUT_DIR,formatted)
+    conn.commit()
+    cur.close()
+    conn.close()
+    return formatted
+
+    
+def SaveKpep(name, cur, formatted):
+    cur.execute(
+        f"""
+        UPDATE {GED_SCHEMA}.{GED_TABLE} SET date_found = %s WHERE kpep = %s AND date_found IS NULL
+        """,
+        (formatted,name)
+    )
+
+
+def SaveToDB(prefix):
     conn = connect_GED_auto()
     if not conn:
         return
 
     cur = conn.cursor()
 
-    cur.execute(
-    f"""
-    CREATE TABLE IF NOT EXISTS {GED_SCHEMA}.{GED_TABLE} (
-        flux_id TEXT NOT NULL,
-        kpep TEXT NOT NULL,
-        date_found TEXT,
-        PRIMARY KEY (flux_id, kpep)
-    )
-    """
-    )
-
-    # CSV GED du jour uniquement. `exclude="RETRY"` écarte {prefix}_TP_GED_RETRY.csv,
-    # produit par le script 08 et daté du jour lui aussi : sans ce filtre, les KPEP
-    # relancés (issus de flux antérieurs) seraient réinjectés sous le flux_id du jour.
-    df_GED , _ = load_concat_csv_by_pattern(
-        INPUT_DIR, f"{prefix}_TP_GED*.csv", label="GED", exclude="RETRY"
-    )
+    df_GED , _ = load_concat_csv_by_pattern(INPUT_DIR, f"{prefix}*TP_GED_RETRY*.csv", label="GED_KO")
     if df_GED is None:
         cur.close()
         conn.close()
         return
-    formatted = date.today().strftime("%d%m%Y")
     for name in df_GED["idepsp"]:
-        SaveKpepFisrt_Attempt(name, prefix, cur, formatted)
-    for kpep in Liste:
-        SaveKpep(kpep,prefix, cur)
+        SaveKpep(name, cur, prefix)
 
     conn.commit()
     cur.close()
     conn.close()
 
-    
-        
-
-
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Contrôle journalier des cartes TP en GED"
-    )
-    parser.add_argument(
-        "--prefix",
-        default=None,
-        help="Préfixe DDMMYYYY. Si absent, détection automatique (dernier New_S).",
-    )
-    parser.add_argument(
-        "--sep",
-        default=None,
-        help="Séparateur CSV de sortie (défaut : OUTPUT_SEP env ou ';').",
-    )
-    parser.add_argument(
-        "--skip-historique",
-        action="store_true",
-        help="Ne met pas à jour Output/Historique_TP_GED.csv (utile pour rejeux).",
-    )
-    args = parser.parse_args()
-
-    output_sep = args.sep if args.sep else os.getenv("OUTPUT_SEP", ";")
-    if not isinstance(output_sep, str) or len(output_sep) != 1:
-        print(f"⚠️ Séparateur invalide '{output_sep}', fallback ';'.")
-        output_sep = ";"
-
-    print("--- 07_controle_tp_ged : démarrage ---")
-    print(f"   Input_Data : {INPUT_DIR}")
-    print(f"   Output     : {OUTPUT_DIR}")
-
-    if not INPUT_DIR.exists():
-        print(f"❌ Dossier Input_Data introuvable : {INPUT_DIR}")
-        return 1
-
-    # --- Détection préfixe ---
-    prefix = args.prefix or find_latest_prefix(INPUT_DIR)
-    if not prefix:
-        print("❌ Aucun préfixe DDMMYYYY détecté (pas de {PREFIX}_New_S.csv).")
-        return 1
-    try:
-        date_flux = datetime.strptime(prefix, "%d%m%Y").date()
-    except ValueError:
-        date_flux = date.today()
-        print(f"⚠️ Préfixe '{prefix}' non parseable, date du jour utilisée.")
-    print(f"📂 Préfixe retenu : {prefix}  (date de flux = {date_flux.strftime('%d/%m/%Y')})")
-
-    # --- Chargement des fichiers ---
-    path_ns = INPUT_DIR / f"{prefix}_New_S.csv"
-    path_iehe = INPUT_DIR / f"{prefix}_IEHE.csv"
-    path_corr = INPUT_DIR / CORRECTIONS_FILE
-
-    df_ns = load_csv(path_ns, sep=None)
-    if df_ns is None or df_ns.empty:
-        print(f"❌ Fichier New_S manquant ou vide : {path_ns.name}")
-        return 1
-    df_ns = normalize_cols(df_ns)
-    print(f"   ✅ New_S chargé : {len(df_ns)} lignes")
-
-    df_iehe = load_csv(path_iehe, sep=None)
-    if df_iehe is None or df_iehe.empty:
-        print(f"⚠️ IEHE absent ou vide ({path_iehe.name}) : KPEP de référence non résolus.")
-    else:
-        print(f"   ✅ IEHE chargé : {len(df_iehe)} lignes")
-
-
-    corrections = load_corrections(path_corr)
-
-    # --- Index KPEP IEHE par (personne, société) ---
-    exact_idx, fallback_idx = build_iehe_kpep_index(df_iehe)
-    print(
-        f"   ✅ Index IEHE : {len(exact_idx)} clé(s) exacte(s), "
-        f"{len(fallback_idx)} personne(s) indexée(s)"
-    )
-
-    # --- Construction du détail ---
-    liste = build_detail(
-        df_ns=df_ns,
-        exact_idx=exact_idx,
-        fallback_idx=fallback_idx,
-        corrections=corrections,
-        date_flux=date_flux,
-        prefix=prefix,
-    )
-    write_ged_sql_batches(liste,OUTPUT_DIR,prefix)
-    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED.csv")
-    SaveToDB(liste, prefix)
-
+    prefix = getNotFound()
+    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED_RETRY.csv")
+    SaveToDB(prefix)
     return 0
 
 
