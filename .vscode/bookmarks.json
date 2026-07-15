@@ -1,0 +1,129 @@
+{
+	"files": [
+		{
+			"path": "pipeline_runner.py",
+			"bookmarks": [
+				{
+					"line": 87,
+					"column": 14,
+					"label": "ici la queue est passé en parametre comment si c'est le cas "
+				},
+				{
+					"line": 156,
+					"column": 8,
+					"label": "le message est depasé par qui quand tu dis le thread du pipline genre c le navigateur ? "
+				},
+				{
+					"line": 312,
+					"column": 0,
+					"label": "elle est appleé ou et quand cette focntion  , pas compris : Quand le pipeline arrive à l'étape \"Détail\", il appelle cette méthode :"
+				}
+			]
+		},
+		{
+			"path": "modules/pipeline/routes.py",
+			"bookmarks": [
+				{
+					"line": 145,
+					"column": 0,
+					"label": "il dit coté serveur reste sur wait mais ou exactement "
+				},
+				{
+					"line": 146,
+					"column": 0,
+					"label": "voir comment ils sont ajouté dans la queue c'est à dire qua nd il ajoute push ou quand il ajoute autre chose dans queue"
+				}
+			]
+		},
+		{
+			"path": "modules/pipeline/templates/pipeline/index.html",
+			"bookmarks": [
+				{
+					"line": 158,
+					"column": 0,
+					"label": "comprendre le flow commment push et autre sont push dans la queue et puis quoand elle sent recu et que l'utilisateur tape ou interait ca remet daans queue un message?"
+				},
+				{
+					"line": 242,
+					"column": 0,
+					"label": "quand on revient sur pipline  ca renvoie requete htpp sur pipline qui va faire quoi reafficher la page html du base?"
+				},
+				{
+					"line": 247,
+					"column": 0,
+					"label": "donc  des qu'on apuie sur le onglet pipline ou des que la page html est chagé gere  tt le fichier html est excuté direct  qu'on envoie  event source ici ? pour qu'il ecoute sur queue"
+				},
+				{
+					"line": 277,
+					"column": 0,
+					"label": "quand on revnait avant sur pipline genre ca rouvre une connexion ca rexute tout le html? "
+				},
+				{
+					"line": 281,
+					"column": 0,
+					"label": "injecté comment"
+				},
+				{
+					"line": 282,
+					"column": 0,
+					"label": "revoie ici comment la pause se construit sur le html"
+				}
+			]
+		},
+		{
+			"path": "modules/dashboard/templates/dashboard/index.html",
+			"bookmarks": [
+				{
+					"line": 1,
+					"column": 0,
+					"label": "le navigateur m'envoie des requete http aussi? "
+				}
+			]
+		},
+		{
+			"path": "modules/dashboard/queries.py",
+			"bookmarks": [
+				{
+					"line": 938,
+					"column": 0,
+					"label": "understand each database and its role"
+				},
+				{
+					"line": 939,
+					"column": 0,
+					"label": "understand when the https request comes here he look in the posgress database for the flux ?"
+				}
+			]
+		},
+		{
+			"path": "Input_Data/16042026_IEHE.csv",
+			"bookmarks": [
+				{
+					"line": 0,
+					"column": 0,
+					"label": "juste ce qu'elle dit ici : Taux de création IEHE --> Intitulé \"Taux de création IEHE\"  avec si possible à la place de l'évolution le Nombre de OK  et KO ; mais on ecrit pas avec le code das iheh juste reverife nn ?  "
+				},
+				{
+					"line": 1,
+					"column": 0,
+					"label": "understand the differents database liek oracla prod and others ect , he said for ged and ciam u need to be in  the cloud ask from the cloud directly  , comprendre jira elle utilise"
+				}
+			]
+		},
+		{
+			"path": "scriptsNewPipline/07_controle_tp_ged.py",
+			"bookmarks": [
+				{
+					"line": 452,
+					"column": 0,
+					"label": "elle est eligible mais pas ete retrouvé alors je la cote dans le retry ou je prend son kepe de newcsv e nn pas iehe "
+				},
+				{
+					"line": 779,
+					"column": 0,
+					"label": "add the reson later reason of why not in ged like  exit not in iehe"
+				}
+			]
+		}
+	]
+}
