@@ -5,21 +5,12 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Données métier — confidentielles
-Input_Data/*.csv
-Input_Data/*.xlsx
-Input_Data/*.sql
-!Input_Data/.gitkeep
+
 
 # Output généré
 Output/*
 !Output/.gitkeep
 
-# Credentials et secrets
-.deps_installed
-*.env
-.env*
-config/credentials.ini
 
 # Fichiers générés
 *.log
