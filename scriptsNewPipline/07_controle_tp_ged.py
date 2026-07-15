@@ -425,7 +425,7 @@ def build_detail(
     corrections: Dict[Tuple[str, str, str], Tuple[str, str]],
     date_flux: date,
     prefix: str,
-) -> pd.DataFrame:
+) -> set :
     """
     Construit le dataframe de détail TP GED à partir du New_S + index IEHE.
 
@@ -440,7 +440,7 @@ def build_detail(
     col_soc = get_col(df, ["code_soc_appart", "code_societe", "code_soc"])
     col_offre = get_col(df, ["offre", "code_offre"])
 
-    required = {"num_personne": col_pers, "type_assure": col_type, "offre": col_offre}
+    required = {"num_personne": col_pers, "type_assure": col_type, "offre": col_offre, "kpep" : col_kpep}
     missing = [k for k, v in required.items() if v is None]
     if missing:
         print(f"❌ New_S — colonnes manquantes : {missing}. Traitement impossible.")
@@ -473,8 +473,9 @@ def build_detail(
         # manage this as non found and like store the reeson because  the nb of ko show also the reseaon 
         #cause its elegible
         if not kpep_ref_u:
-            liste.append(kpek_ref,"non rapproché iehe")
-        liste.append(kpek_ref , None)
+            liste.append((kpek_ref,"non rapproché iehe"))
+        else :
+            liste.append(kpek_ref , None)
 
     return set(liste)
 
@@ -515,7 +516,7 @@ def find_ged_sql_template() -> Optional[Path]:
     return None
 
 
-def write_ged_sql_batches(kpep_listt: List[(str,str)], output_dir: Path, prefix: str) -> int:
+def write_ged_sql_batches(kpep_listt: List[Tuple[str, str]], output_dir: Path, prefix: str) -> int:
     """
     Génère les fichiers SQL par batch pour interroger la GED sur les KPEP de
     référence de la population TP éligible (même mécanique que
@@ -634,19 +635,12 @@ def connect_pg(host, port, db):
 
 #one connection
 def connect_GED_auto():
-    hosts = ["bdd-T0XX0052.alias"]
-    ports = [5577]
-    dbs = ["supervisionpsc_db"]
-    
-    for h in hosts:
-        for p in ports:
-            for d in dbs:
-                try: 
-                    conn = connect_pg(h, p, d)
-                    if conn: return conn
-                except: continue
+    try:
+        conn = connect_pg(PG_HOST, PG_PORT, PG_DB)
+    except Exception as e:
+        print(f"❌ GED connection failed: {PG_HOST}:{PG_PORT}/{PG_DB} — {e}")
+        return None           
     return None
-
 
 
 def SaveKpepFisrt_Attempt(name, prefix , cur, formatted):
@@ -680,16 +674,17 @@ def SaveKpep(name, prefix, cur):
             VALUES (%s, %s, NULL, %s)
             ON CONFLICT (flux_id, kpep) DO UPDATE SET motif = EXCLUDED.motif
             """,
-            (prefix, name, name[1] )
+            (prefix, name[0], name[1] )
         )
 
 
 
 
-def SaveToDB(Liste, Liste_ko_iehe, prefix):
+def SaveToDB(Liste, prefix):
     conn = connect_GED_auto()
     if not conn:
-        return
+        print("cann't connect")
+        sys.exit(1)
 
     cur = conn.cursor()
 
@@ -699,7 +694,7 @@ def SaveToDB(Liste, Liste_ko_iehe, prefix):
         flux_id TEXT NOT NULL,
         kpep TEXT NOT NULL,
         date_found DATE,
-        motif TEXT
+        motif TEXT,
         PRIMARY KEY (flux_id, kpep)
     )
     """
@@ -716,8 +711,19 @@ def SaveToDB(Liste, Liste_ko_iehe, prefix):
         conn.close()
         return
     today = date.today()
-    for name in df_GED["idepsp"]:
+
+    col_kpep = get_col(df_GED, ["idepsp", "idkpep", "kpep"])
+    if col_kpep is None:
+        print("❌ GED — no KPEP column found.")
+        return
+
+
+    for name in df_GED[col_kpep]:
+        name = str(name).strip()
+        if not name:
+            continue
         SaveKpepFisrt_Attempt(name, prefix, cur, today)
+        
     for kpep in Liste:
         SaveKpep(kpep,prefix, cur)
 

@@ -3,3 +3,4 @@
 - for the reseaon of why we need to manage that also
 - the curve will change  each day because new found we can save the state if u want
 -retry with airflow
+- correction of ged manual take into account that

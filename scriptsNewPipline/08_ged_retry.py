@@ -620,17 +620,11 @@ def connect_pg(host, port, db):
 
 #one connection
 def connect_GED_auto():
-    hosts = ["bdd-T0XX0052.alias"]
-    ports = [5577]
-    dbs = ["supervisionpsc_db"]
-    
-    for h in hosts:
-        for p in ports:
-            for d in dbs:
-                try: 
-                    conn = connect_pg(h, p, d)
-                    if conn: return conn
-                except: continue
+    try:
+        conn = connect_pg(PG_HOST, PG_PORT, PG_DB)
+    except Exception as e:
+        print(f"❌ GED connection failed: {PG_HOST}:{PG_PORT}/{PG_DB} — {e}")
+        return None           
     return None
     
 
@@ -638,6 +632,8 @@ def connect_GED_auto():
 def getNotFound():
     conn = connect_GED_auto()
     if not conn:
+        print("i cann't connect")
+        sys.exit(1)
         return
 
     cur = conn.cursor()
@@ -670,17 +666,29 @@ def SaveKpep(name, cur, formatted):
 def SaveToDB(prefix):
     conn = connect_GED_auto()
     if not conn:
-        return
-
+        print("cann't connect")
+        sys.exit(1)
     cur = conn.cursor()
 
     df_GED , _ = load_concat_csv_by_pattern(INPUT_DIR, f"{prefix}*TP_GED_RETRY*.csv", label="GED_KO")
     if df_GED is None:
         cur.close()
         conn.close()
+        print("no file _TP_GED_RETRY found")
         return
-    for name in df_GED["idepsp"]:
-        SaveKpep(name, cur, prefix)
+    today = date.today()
+    
+    col_kpep = get_col(df_GED, ["idepsp", "idkpep", "kpep"])
+
+    if col_kpep is None:
+        print("❌ GED — no KPEP column found.")
+        return
+
+    for name in df_GED[col_kpep]:
+        name = str(name).strip()
+        if not name:
+            continue
+        SaveKpep(name, cur, today)
 
     conn.commit()
     cur.close()
