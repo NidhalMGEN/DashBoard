@@ -119,13 +119,13 @@ GED_SQL_TEMPLATE = "00-Export_GED_KPEP_With_Distinct.sql"
 
 
 # Config BDD (IEHE)
-PG_HOST = "bdd-X0ED0550.alias"
-PG_PORT = 5559
-PG_DB = "choregie_db"
+PG_HOST = os.getenv("PG_HOST", "bdd-T0XX0052.alias")
+PG_PORT = os.getenv("PG_PORT", "5577")
+PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
 PG_USER     = os.environ.get("PG_USER", "")
 PG_PASSWORD = os.environ.get("PG_PASSWORD", "")
-GED_SCHEMA = "iehe"
-GED_TABLE  = "refkpep"
+GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
+GED_TABLE  = "suivi_tp_ged"
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
@@ -620,9 +620,9 @@ def connect_pg(host, port, db):
 
 #one connection
 def connect_GED_auto():
-    hosts = ["bdd-X0ED0550.alias", "100.54.41.6"]
-    ports = [5559, 5432]
-    dbs = ["choregie_db", "postgres"]
+    hosts = ["bdd-T0XX0052.alias"]
+    ports = [5577]
+    dbs = ["supervisionpsc_db"]
     
     for h in hosts:
         for p in ports:
@@ -632,7 +632,6 @@ def connect_GED_auto():
                     if conn: return conn
                 except: continue
     return None
-
     
 
 
@@ -646,8 +645,7 @@ def getNotFound():
         SELECT kpep
         FROM {GED_SCHEMA}.{GED_TABLE}
         WHERE date_found IS NULL
-        and TO_DATE(flux_id, 'DDMMYYYY') >= CURRENT_DATE - INTERVAL '30 days';
-        """,
+        """
         )
     kpeps = [row[0] for row in cur.fetchall()]
 

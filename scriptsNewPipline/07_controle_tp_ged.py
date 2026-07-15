@@ -69,6 +69,7 @@ Sorties
 from __future__ import annotations
 
 import argparse
+from operator import itemgetter
 import os
 import re
 import sys
@@ -434,6 +435,7 @@ def build_detail(
     df.columns = [str(c).strip().lower() for c in df.columns]
 
     col_pers = get_col(df, ["num_personne", "numpersonne"])
+    col_kpep = get_col(df, ["kpep_ref", "kpep", "idepsp"])
     col_type = get_col(df, ["type_assure", "typeassure"])
     col_soc = get_col(df, ["code_soc_appart", "code_societe", "code_soc"])
     col_offre = get_col(df, ["offre", "code_offre"])
@@ -455,21 +457,24 @@ def build_detail(
         type_assure = str(r.get(col_type, "") or "").strip().upper()
         offre = str(r.get(col_offre, "") or "").strip().upper()
         code_soc = str(r.get(col_soc, "") or "").strip() if col_soc else ""
+        kpek_ref = str(r.get(col_kpep, "") or "").strip().upper() if col_kpep else ""
 
         eligible, raison = compute_eligibilite_tp_ged(type_assure, offre, code_soc)
         if not eligible:
             continue  # on ne garde que la population éligible dans le détail
-
-        kpep_ref, motif_kpep = resolve_kpep_ref(num_pers, code_soc, exact_idx, fallback_idx)
-        kpep_ref_u = kpep_ref.upper().strip()
+        #kpep depuis newS
+        #motif en base
+        kpep_ref_iehe, motif_kpep = resolve_kpep_ref(num_pers, code_soc, exact_idx, fallback_idx)
+        kpep_ref_u = kpep_ref_iehe.upper().strip()
 
 
         # Si pas de KPEP IEHE, on ne peut pas statuer : NON_RAPPROCHE avec motif
 
         # manage this as non found and like store the reeson because  the nb of ko show also the reseaon 
         #cause its elegible
-        if  kpep_ref_u:
-            liste.append(kpep_ref_u)
+        if not kpep_ref_u:
+            liste.append(kpek_ref,"non rapproché iehe")
+        liste.append(kpek_ref , None)
 
     return set(liste)
 
@@ -510,7 +515,7 @@ def find_ged_sql_template() -> Optional[Path]:
     return None
 
 
-def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -> int:
+def write_ged_sql_batches(kpep_listt: List[(str,str)], output_dir: Path, prefix: str) -> int:
     """
     Génère les fichiers SQL par batch pour interroger la GED sur les KPEP de
     référence de la population TP éligible (même mécanique que
@@ -519,6 +524,7 @@ def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -
     Sorties : {PREFIX}_REQ_TP_GED_KPEP_Part{N}.sql dans `output_dir`.
     Retourne le nombre de fichiers écrits.
     """
+    kpep_list = list(map(itemgetter(0), kpep_listt)) # take the first element of each element in the list no reason (2nd element)
     tpl_path = find_ged_sql_template()
     if tpl_path is None:
         print(f"      ⚠️  Template SQL absent : {GED_SQL_TEMPLATE} (ni {SCRIPT_DIR}, ni {INPUT_DIR})")
@@ -648,25 +654,39 @@ def SaveKpepFisrt_Attempt(name, prefix , cur, formatted):
     cur.execute(
             f"""
             INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-            (flux_id, kpep, date_found)
-            VALUES (%s, %s,  %s)
+            (flux_id, kpep, date_found, motif)
+            VALUES (%s, %s,  %s, NULL)
+            ON CONFLICT (flux_id, kpep) DO NOTHING
             """,
             (prefix, name, formatted)
     )
+
 def SaveKpep(name, prefix, cur):
-    cur.execute(
-        f"""
-        INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-        (flux_id, kpep, date_found)
-        VALUES (%s, %s, NULL)
-        ON CONFLICT (flux_id, kpep) DO NOTHING
-        """,
-        (prefix, name)
-    )
-    
+    if name[1] == None:
+        cur.execute(
+            f"""
+            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
+            (flux_id, kpep, date_found , motif)
+            VALUES (%s, %s, NULL, NULL)
+            ON CONFLICT (flux_id, kpep) DO NOTHING
+            """,
+            (prefix, name[0])
+        )
+    else :
+        cur.execute(
+            f"""
+            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
+            (flux_id, kpep, date_found , motif)
+            VALUES (%s, %s, NULL, %s)
+            ON CONFLICT (flux_id, kpep) DO UPDATE SET motif = EXCLUDED.motif
+            """,
+            (prefix, name, name[1] )
+        )
 
 
-def SaveToDB(Liste, prefix):
+
+
+def SaveToDB(Liste, Liste_ko_iehe, prefix):
     conn = connect_GED_auto()
     if not conn:
         return
@@ -678,7 +698,8 @@ def SaveToDB(Liste, prefix):
     CREATE TABLE IF NOT EXISTS {GED_SCHEMA}.{GED_TABLE} (
         flux_id TEXT NOT NULL,
         kpep TEXT NOT NULL,
-        date_found TEXT,
+        date_found DATE,
+        motif TEXT
         PRIMARY KEY (flux_id, kpep)
     )
     """
@@ -694,9 +715,9 @@ def SaveToDB(Liste, prefix):
         cur.close()
         conn.close()
         return
-    formatted = date.today().strftime("%d%m%Y")
+    today = date.today()
     for name in df_GED["idepsp"]:
-        SaveKpepFisrt_Attempt(name, prefix, cur, formatted)
+        SaveKpepFisrt_Attempt(name, prefix, cur, today)
     for kpep in Liste:
         SaveKpep(kpep,prefix, cur)
 
@@ -794,7 +815,7 @@ def main() -> int:
     )
     write_ged_sql_batches(liste,OUTPUT_DIR,prefix)
     input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED.csv")
-    SaveToDB(liste, prefix)
+    SaveToDB(liste,prefix)
 
     return 0
 
