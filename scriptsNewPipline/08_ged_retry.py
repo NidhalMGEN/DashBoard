@@ -72,7 +72,7 @@ import argparse
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -122,30 +122,30 @@ GED_SQL_TEMPLATE = "00-Export_GED_KPEP_With_Distinct.sql"
 PG_HOST = os.getenv("PG_HOST", "bdd-T0XX0052.alias")
 PG_PORT = os.getenv("PG_PORT", "5577")
 PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
-PG_USER     = os.environ.get("PG_USER", "")
-PG_PASSWORD = os.environ.get("PG_PASSWORD", "")
+PG_USER     = os.environ.get("PG_USER", "rptpsc")
+PG_PASSWORD = os.environ.get("PG_PASSWORD", "rptpsc_xx")
 GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
 GED_TABLE  = "suivi_tp_ged"
+# ----------------------------
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
 # load the new_S file
+def _detect_sep(path: Path, encoding: str) -> str:
+    with open(path, "r", encoding=encoding, errors="replace") as fh:
+        first_line = fh.readline()
+    counts = {s: first_line.count(s) for s in (";", ",", "\t", "|")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
 def load_csv(path: Path, sep: Optional[str] = None) -> Optional[pd.DataFrame]:
-    """
-    Chargement tolérant (utf-8-sig → latin-1), détection de séparateur auto.
-    Retourne None si le fichier est absent ou illisible (jamais d'exception).
-    """
     if path is None or not path.exists():
         return None
-    attempts = [
-        {"encoding": "utf-8-sig"},
-        {"encoding": "utf-8"},
-        {"encoding": "latin-1"},
-        {"encoding": "cp1252"},
-    ]
-    for params in attempts:
+    for params in ({"encoding": "utf-8-sig"}, {"encoding": "utf-8"},
+                   {"encoding": "latin-1"}, {"encoding": "cp1252"}):
         try:
-            df = pd.read_csv(path, sep=sep, engine="python", dtype=str, **params)
+            use_sep = sep if sep is not None else _detect_sep(path, params["encoding"])
+            df = pd.read_csv(path, sep=use_sep, engine="python", dtype=str, **params)
             return df
         except Exception:
             continue
@@ -510,7 +510,54 @@ def find_ged_sql_template() -> Optional[Path]:
     return None
 
 
-def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -> int:
+# -----------------------------
+# FENÊTRE tmstinj DE LA REQUÊTE GED
+# -----------------------------
+def build_ged_window(debut_inclus: date, fin_inclus: date) -> Tuple[str, str]:
+    """
+    Traduit une fenêtre métier INCLUSIVE [debut_inclus, fin_inclus] en les deux
+    bornes à écrire dans le template GED.
+
+    Dans la GED, `tmstinj` a une granularité "jour" et les comparateurs du
+    template sont stricts : `tmstinj > 'D'` exclut toute la journée D, et
+    `tmstinj < 'D'` l'exclut également. Pour que les deux journées extrêmes
+    soient bien couvertes, on décale donc chaque borne d'un jour vers
+    l'extérieur.
+
+    Retourne (date_debut, date_fin) au format YYYYMMDD.
+    """
+    return (
+        (debut_inclus - timedelta(days=1)).strftime("%Y%m%d"),
+        (fin_inclus + timedelta(days=1)).strftime("%Y%m%d"),
+    )
+
+
+def compute_window_retry(flux_le_plus_ancien: Optional[date]) -> Tuple[date, date]:
+    """
+    Fenêtre métier (INCLUSIVE) du retry.
+
+    Contrairement au contrôle initial (script 07), la population du retry est
+    l'ensemble des cartes encore non retrouvées, qui peuvent dater de flux
+    bien antérieurs. Une fenêtre glissante courte les ferait sortir du champ
+    de la requête, et elles ne seraient alors PLUS JAMAIS retrouvées.
+
+      - début : date du flux de la carte non retrouvée la plus ancienne
+      - fin   : aujourd'hui
+
+    Si plus aucune carte n'est en attente, on retombe sur la journée courante.
+    """
+    aujourd_hui = date.today()
+    debut = flux_le_plus_ancien if flux_le_plus_ancien is not None else aujourd_hui
+    return min(debut, aujourd_hui), aujourd_hui
+
+
+def write_ged_sql_batches(
+    kpep_list: List[str],
+    output_dir: Path,
+    prefix: str,
+    debut_inclus: date,
+    fin_inclus: date,
+) -> int:
     """
     Génère les fichiers SQL par batch pour interroger la GED sur les KPEP de
     référence de la population TP éligible (même mécanique que
@@ -540,13 +587,37 @@ def write_ged_sql_batches(kpep_list: List[str], output_dir: Path, prefix: str) -
         print(f"      ❌ Erreur Template {tpl_path.name} : Balise __LISTE_IDS__ introuvable.")
         return 0
 
+    date_debut, date_fin = build_ged_window(debut_inclus, fin_inclus)
+    print(
+        f"      Fenetre tmstinj : {debut_inclus:%d/%m/%Y} -> {fin_inclus:%d/%m/%Y} "
+        f"(bornes SQL : > '{date_debut}' et < '{date_fin}')"
+    )
+
+    # Garde-fou déploiement : si seul le .py a été recopié et pas le template,
+    # la fenêtre resterait celle codée en dur dans l'ancien .sql, sans erreur
+    # visible — d'où l'avertissement explicite.
+    if "__DATE_DEBUT__" not in base_sql_template or "__DATE_FIN__" not in base_sql_template:
+        # Message volontairement en ASCII pur : il se déclenche typiquement
+        # lors d'un déploiement partiel, y compris hors runner (console cp1252
+        # où un emoji ferait planter le print).
+        print(
+            f"      [ATTENTION] Template {tpl_path.name} obsolete : balises "
+            f"__DATE_DEBUT__ / __DATE_FIN__ absentes."
+        )
+        print("         -> La fenetre tmstinj restera celle codee en dur dans le template.")
+        print("         -> Redeployez Input_Data/00-Export_GED_KPEP_With_Distinct.sql.")
+
     n_files = 0
     for i in range(0, len(kpeps), BATCH_SIZE_SQL):
         chunk = kpeps[i : i + BATCH_SIZE_SQL]
         batch_index = (i // BATCH_SIZE_SQL) + 1
         out_name = f"{prefix}_REQ_TP_GED_RETRY_KPEP_Part{batch_index}.sql"
         values_str = "'" + "','".join(chunk) + "'"
-        final_sql = base_sql_template.replace("__LISTE_IDS__", values_str)
+        final_sql = (
+            base_sql_template.replace("__LISTE_IDS__", values_str)
+            .replace("__DATE_DEBUT__", date_debut)
+            .replace("__DATE_FIN__", date_fin)
+        )
         header = f"/* BATCH {batch_index} | GENERATED {datetime.now()} | SOURCE: {prefix} | NB: {len(chunk)} */\n"
         try:
             with open(output_dir / out_name, "w", encoding="utf-8") as f_out:
@@ -613,19 +684,20 @@ def find_latest_new_s(folder: Path) -> Tuple[Optional[Path], Optional[str]]:
 
 
 def connect_pg(host, port, db):
-    try:
         return psycopg.connect(host=host, port=port, dbname=db, user=PG_USER, password=PG_PASSWORD, connect_timeout=3)
-    except:
-        return None
+  
 
 #one connection
 def connect_GED_auto():
     try:
-        conn = connect_pg(PG_HOST, PG_PORT, PG_DB)
+        return connect_pg(PG_HOST, PG_PORT, PG_DB)
     except Exception as e:
-        print(f"❌ GED connection failed: {PG_HOST}:{PG_PORT}/{PG_DB} — {e}")
-        return None           
-    return None
+        print(f"❌ GED connection failed")
+        print(f"Host: {PG_HOST}")
+        print(f"Port: {PG_PORT}")
+        print(f"DB:   {PG_DB}")
+        print(e)
+        return None
     
 
 
@@ -638,16 +710,39 @@ def getNotFound():
 
     cur = conn.cursor()
     cur.execute( f"""
-        SELECT kpep
+        SELECT kpep, flux_id
         FROM {GED_SCHEMA}.{GED_TABLE}
         WHERE date_found IS NULL
         """
         )
-    kpeps = [row[0] for row in cur.fetchall()]
+    rows = cur.fetchall()
+    kpeps = [row[0] for row in rows]
+
+    # `flux_id` est un TEXT au format DDMMYYYY : un MIN() SQL trierait sur le
+    # jour avant le mois ('01082026' < '17072026' alors que le 17/07 précède
+    # le 01/08). On parse donc les préfixes côté Python pour trouver le flux
+    # réellement le plus ancien.
+    flux_dates: List[date] = []
+    for _, flux_id in rows:
+        try:
+            flux_dates.append(datetime.strptime(str(flux_id).strip(), "%d%m%Y").date())
+        except (ValueError, TypeError):
+            continue
+    flux_le_plus_ancien = min(flux_dates) if flux_dates else None
+
+    if flux_le_plus_ancien is None:
+        print("[INFO] Aucune carte en attente : fenêtre limitée à la journée courante.")
+    else:
+        print(
+            f"[INFO] {len(kpeps)} carte(s) en attente — flux le plus ancien : "
+            f"{flux_le_plus_ancien:%d/%m/%Y}"
+        )
+
+    debut_inclus, fin_inclus = compute_window_retry(flux_le_plus_ancien)
 
     formatted = date.today().strftime("%d%m%Y")
 
-    write_ged_sql_batches(kpeps,OUTPUT_DIR,formatted)
+    write_ged_sql_batches(kpeps, OUTPUT_DIR, formatted, debut_inclus, fin_inclus)
     conn.commit()
     cur.close()
     conn.close()
@@ -684,11 +779,12 @@ def SaveToDB(prefix):
         print("❌ GED — no KPEP column found.")
         return
 
-    for name in df_GED[col_kpep]:
-        name = str(name).strip()
-        if not name:
-            continue
-        SaveKpep(name, cur, today)
+    kpeps = [str(n).strip() for n in df_GED[col_kpep] if str(n).strip()]
+    cur.execute(
+        f"""UPDATE {GED_SCHEMA}.{GED_TABLE} SET date_found = %s
+            WHERE kpep = ANY(%s) AND date_found IS NULL""",
+        (today, kpeps),
+    )
 
     conn.commit()
     cur.close()
@@ -697,7 +793,7 @@ def SaveToDB(prefix):
 
 def main() -> int:
     prefix = getNotFound()
-    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED_RETRY.csv")
+    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appeler {prefix}_TP_GED_RETRY.csv")
     SaveToDB(prefix)
     return 0
 

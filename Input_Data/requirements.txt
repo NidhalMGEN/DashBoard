@@ -1,0 +1,10 @@
+flask
+pandas
+numpy
+openpyxl
+psycopg[binary]
+sqlalchemy
+pyyaml
+oracledb
+weasyprint
+faker

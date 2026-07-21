@@ -47,10 +47,15 @@ class PipelineRunner:
         "ged": ["*_TP_GED.csv", "*TP_GED*.csv"],
     }
 
+    # Dossier des scripts exécutés par les étapes (surchargeable par sous-classe).
+    SCRIPTS_DIR_NAME = "Scripts"
+
     # Prompt input() du script 01 (ligne 365) → vraie pause IHM, on attend l'utilisateur.
     # Marqueur discriminant placé en FIN de prompt (les deux prompts partagent le
     # préfixe « Appuyez sur Entrée », on ne déclenche que sur la partie distinctive).
     PAUSE_PROMPT_MARKER = "CM et CK"
+    PAUSE_ID = "cm_ck"
+    PAUSE_MESSAGE = "Déposez CM.csv et CK.csv dans Input_Data/ puis cliquez « Continuer »"
 
     # Prompts terminaux « Appuyez sur Entrée pour quitter » (lignes 460/467/475/488
     # du script 01) → on répond automatiquement \n pour ne pas bloquer le subprocess.
@@ -187,7 +192,7 @@ class PipelineRunner:
             return
         self._pause_event      = threading.Event()
         self._current_pause_id = pause_id
-        msg = "Déposez CM.csv et CK.csv dans Input_Data/ puis cliquez « Continuer »"
+        msg = self.PAUSE_MESSAGE
         self._pause_message    = msg
         self.emit_pause(pause_id, msg)
         self.emit_log(f"⏸ PAUSE — {msg}", level="pause")
@@ -250,7 +255,7 @@ class PipelineRunner:
 
     # ── Exécution d'une étape ─────────────────────────────────────────
     def _run_step(self, step: Step) -> bool:
-        script_path = self.base_dir / "Scripts" / step.script
+        script_path = self.base_dir / self.SCRIPTS_DIR_NAME / step.script
         if not script_path.exists():
             self.emit_log(f"❌ Script introuvable : {script_path}", level="error")
             return False
@@ -299,7 +304,7 @@ class PipelineRunner:
                     if line_buf.strip():
                         self.emit_log(line_buf.strip(), level="pause")
                     line_buf = ""
-                    self._trigger_pause("cm_ck", proc)
+                    self._trigger_pause(self.PAUSE_ID, proc)
                 elif self.AUTOANSWER_MARKER in line_buf:
                     if line_buf.strip():
                         self.emit_log(line_buf.strip(), level="info")

@@ -73,7 +73,7 @@ from operator import itemgetter
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -123,30 +123,29 @@ GED_SQL_TEMPLATE = "00-Export_GED_KPEP_With_Distinct.sql"
 PG_HOST = os.getenv("PG_HOST", "bdd-T0XX0052.alias")
 PG_PORT = os.getenv("PG_PORT", "5577")
 PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
-PG_USER     = os.environ.get("PG_USER", "")
-PG_PASSWORD = os.environ.get("PG_PASSWORD", "")
+PG_USER     = os.environ.get("PG_USER", "rptpsc")
+PG_PASSWORD = os.environ.get("PG_PASSWORD", "rptpsc_xx")
 GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
 GED_TABLE  = "suivi_tp_ged"
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
 # load the new_S file
+def _detect_sep(path: Path, encoding: str) -> str:
+    with open(path, "r", encoding=encoding, errors="replace") as fh:
+        first_line = fh.readline()
+    counts = {s: first_line.count(s) for s in (";", ",", "\t", "|")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
 def load_csv(path: Path, sep: Optional[str] = None) -> Optional[pd.DataFrame]:
-    """
-    Chargement tolérant (utf-8-sig → latin-1), détection de séparateur auto.
-    Retourne None si le fichier est absent ou illisible (jamais d'exception).
-    """
     if path is None or not path.exists():
         return None
-    attempts = [
-        {"encoding": "utf-8-sig"},
-        {"encoding": "utf-8"},
-        {"encoding": "latin-1"},
-        {"encoding": "cp1252"},
-    ]
-    for params in attempts:
+    for params in ({"encoding": "utf-8-sig"}, {"encoding": "utf-8"},
+                   {"encoding": "latin-1"}, {"encoding": "cp1252"}):
         try:
-            df = pd.read_csv(path, sep=sep, engine="python", dtype=str, **params)
+            use_sep = sep if sep is not None else _detect_sep(path, params["encoding"])
+            df = pd.read_csv(path, sep=use_sep, engine="python", dtype=str, **params)
             return df
         except Exception:
             continue
@@ -435,7 +434,7 @@ def build_detail(
     df.columns = [str(c).strip().lower() for c in df.columns]
 
     col_pers = get_col(df, ["num_personne", "numpersonne"])
-    col_kpep = get_col(df, ["kpep_ref", "kpep", "idepsp"])
+    col_kpep = get_col(df, ["kpep_ref", "kpep", "idepsp", "idkpep"])
     col_type = get_col(df, ["type_assure", "typeassure"])
     col_soc = get_col(df, ["code_soc_appart", "code_societe", "code_soc"])
     col_offre = get_col(df, ["offre", "code_offre"])
@@ -444,6 +443,7 @@ def build_detail(
     missing = [k for k, v in required.items() if v is None]
     if missing:
         print(f"❌ New_S — colonnes manquantes : {missing}. Traitement impossible.")
+        sys.exit(1)
         return pd.DataFrame()
 
     rows: List[Dict[str, Any]] = []
@@ -475,7 +475,7 @@ def build_detail(
         if not kpep_ref_u:
             liste.append((kpek_ref,"non rapproché iehe"))
         else :
-            liste.append(kpek_ref , None)
+            liste.append((kpek_ref , None))
 
     return set(liste)
 
@@ -516,7 +516,60 @@ def find_ged_sql_template() -> Optional[Path]:
     return None
 
 
-def write_ged_sql_batches(kpep_listt: List[Tuple[str, str]], output_dir: Path, prefix: str) -> int:
+# -----------------------------
+# FENÊTRE tmstinj DE LA REQUÊTE GED
+# -----------------------------
+def _last_day_of_month(d: date) -> date:
+    """Dernier jour du mois de `d`."""
+    first_next = (
+        d.replace(year=d.year + 1, month=1, day=1)
+        if d.month == 12
+        else d.replace(month=d.month + 1, day=1)
+    )
+    return first_next - timedelta(days=1)
+
+
+def build_ged_window(debut_inclus: date, fin_inclus: date) -> Tuple[str, str]:
+    """
+    Traduit une fenêtre métier INCLUSIVE [debut_inclus, fin_inclus] en les deux
+    bornes à écrire dans le template GED.
+
+    Dans la GED, `tmstinj` a une granularité "jour" et les comparateurs du
+    template sont stricts : `tmstinj > 'D'` exclut toute la journée D, et
+    `tmstinj < 'D'` l'exclut également. Pour que les deux journées extrêmes
+    soient bien couvertes, on décale donc chaque borne d'un jour vers
+    l'extérieur.
+
+    Retourne (date_debut, date_fin) au format YYYYMMDD.
+    """
+    return (
+        (debut_inclus - timedelta(days=1)).strftime("%Y%m%d"),
+        (fin_inclus + timedelta(days=1)).strftime("%Y%m%d"),
+    )
+
+
+def compute_window_controle(date_flux: date) -> Tuple[date, date]:
+    """
+    Fenêtre métier (INCLUSIVE) du contrôle initial, règle validée avec le métier :
+
+      - début : date de flux - 7 jours, sans déborder sur le mois précédent
+                (plancher = 1er du mois de la date de flux)
+      - fin   : dernier jour du mois de la date de flux
+
+    Exemple : flux du 17/07/2026 → [10/07/2026, 31/07/2026]
+              flux du 03/07/2026 → [01/07/2026, 31/07/2026]  (plancher appliqué)
+    """
+    debut = max(date_flux - timedelta(days=7), date_flux.replace(day=1))
+    return debut, _last_day_of_month(date_flux)
+
+
+def write_ged_sql_batches(
+    kpep_listt: List[Tuple[str, str]],
+    output_dir: Path,
+    prefix: str,
+    debut_inclus: date,
+    fin_inclus: date,
+) -> int:
     """
     Génère les fichiers SQL par batch pour interroger la GED sur les KPEP de
     référence de la population TP éligible (même mécanique que
@@ -547,13 +600,36 @@ def write_ged_sql_batches(kpep_listt: List[Tuple[str, str]], output_dir: Path, p
         print(f"      ❌ Erreur Template {tpl_path.name} : Balise __LISTE_IDS__ introuvable.")
         return 0
 
+    date_debut, date_fin = build_ged_window(debut_inclus, fin_inclus)
+    print(
+        f"      Fenetre tmstinj : {debut_inclus:%d/%m/%Y} -> {fin_inclus:%d/%m/%Y} "
+        f"(bornes SQL : > '{date_debut}' et < '{date_fin}')"
+    )
+
+    # Garde-fou déploiement : si seul le .py a été recopié et pas le template,
+    # la fenêtre resterait celle codée en dur dans l'ancien .sql, sans erreur
+    # visible — d'où l'avertissement explicite.
+    if "__DATE_DEBUT__" not in base_sql_template or "__DATE_FIN__" not in base_sql_template:
+        # Message volontairement en ASCII pur : il se déclenche typiquement
+        # lors d'un déploiement partiel, y compris hors runner (console cp1252
+        # où un emoji ferait planter le print).
+        print(
+            f"      [ATTENTION] Template {tpl_path.name} obsolete : balises "
+            f"__DATE_DEBUT__ / __DATE_FIN__ absentes."
+        )
+        print("         -> La fenetre tmstinj restera celle codee en dur dans le template.")
+        print("         -> Redeployez Input_Data/00-Export_GED_KPEP_With_Distinct.sql.")
     n_files = 0
     for i in range(0, len(kpeps), BATCH_SIZE_SQL):
         chunk = kpeps[i : i + BATCH_SIZE_SQL]
         batch_index = (i // BATCH_SIZE_SQL) + 1
         out_name = f"{prefix}_REQ_TP_GED_KPEP_Part{batch_index}.sql"
         values_str = "'" + "','".join(chunk) + "'"
-        final_sql = base_sql_template.replace("__LISTE_IDS__", values_str)
+        final_sql = (
+            base_sql_template.replace("__LISTE_IDS__", values_str)
+            .replace("__DATE_DEBUT__", date_debut)
+            .replace("__DATE_FIN__", date_fin)
+        )
         header = f"/* BATCH {batch_index} | GENERATED {datetime.now()} | SOURCE: {prefix} | NB: {len(chunk)} */\n"
         try:
             with open(output_dir / out_name, "w", encoding="utf-8") as f_out:
@@ -628,23 +704,23 @@ def find_latest_new_s(folder: Path) -> Tuple[Optional[Path], Optional[str]]:
 
 
 def connect_pg(host, port, db):
-    try:
         return psycopg.connect(host=host, port=port, dbname=db, user=PG_USER, password=PG_PASSWORD, connect_timeout=3)
-    except:
-        return None
+  
 
 #one connection
 def connect_GED_auto():
     try:
-        conn = connect_pg(PG_HOST, PG_PORT, PG_DB)
+        return connect_pg(PG_HOST, PG_PORT, PG_DB)
     except Exception as e:
-        print(f"❌ GED connection failed: {PG_HOST}:{PG_PORT}/{PG_DB} — {e}")
-        return None           
-    return None
+        print(f"❌ GED connection failed")
+        print(f"Host: {PG_HOST}")
+        print(f"Port: {PG_PORT}")
+        print(f"DB:   {PG_DB}")
+        print(e)
+        return None
 
 
 def SaveKpepFisrt_Attempt(name, prefix , cur, formatted):
-    today = date.today()
     cur.execute(
             f"""
             INSERT INTO {GED_SCHEMA}.{GED_TABLE}
@@ -700,6 +776,12 @@ def SaveToDB(Liste, prefix):
     """
     )
 
+    # Index kpep seul : le PK (flux_id, kpep) est inutilisable pour les
+    # requêtes par kpep sans flux_id (script 08).
+    cur.execute(
+        f"CREATE INDEX IF NOT EXISTS idx_{GED_TABLE}_kpep ON {GED_SCHEMA}.{GED_TABLE} (kpep)"
+    )
+
     # CSV GED du jour uniquement. `exclude="RETRY"` écarte {prefix}_TP_GED_RETRY.csv,
     # produit par le script 08 et daté du jour lui aussi : sans ce filtre, les KPEP
     # relancés (issus de flux antérieurs) seraient réinjectés sous le flux_id du jour.
@@ -712,20 +794,24 @@ def SaveToDB(Liste, prefix):
         return
     today = date.today()
 
-    col_kpep = get_col(df_GED, ["idepsp", "idkpep", "kpep"])
+    col_kpep = get_col(df_GED, ["idepsp", "idkpep", "kpep", "idepsp"])
+    print(df_GED.columns.tolist())
     if col_kpep is None:
         print("❌ GED — no KPEP column found.")
         return
 
-
-    for name in df_GED[col_kpep]:
-        name = str(name).strip()
-        if not name:
-            continue
-        SaveKpepFisrt_Attempt(name, prefix, cur, today)
+    cur.executemany(
+        f"""INSERT INTO {GED_SCHEMA}.{GED_TABLE} (flux_id, kpep, date_found, motif)
+            VALUES (%s, %s, %s, NULL) ON CONFLICT (flux_id, kpep) DO NOTHING""",
+        [(prefix, str(n).strip(), today) for n in df_GED[col_kpep] if str(n).strip()],
+    )
         
-    for kpep in Liste:
-        SaveKpep(kpep,prefix, cur)
+    cur.executemany(
+        f"""INSERT INTO {GED_SCHEMA}.{GED_TABLE} (flux_id, kpep, date_found, motif)
+            VALUES (%s, %s, NULL, %s)
+            ON CONFLICT (flux_id, kpep) DO UPDATE SET motif = EXCLUDED.motif""",
+        [(prefix, k, m) for (k, m) in Liste],
+    )
 
     conn.commit()
     cur.close()
@@ -819,8 +905,9 @@ def main() -> int:
         date_flux=date_flux,
         prefix=prefix,
     )
-    write_ged_sql_batches(liste,OUTPUT_DIR,prefix)
-    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appelet {prefix}_TP_GED.csv")
+    debut_inclus, fin_inclus = compute_window_controle(date_flux)
+    write_ged_sql_batches(liste, OUTPUT_DIR, prefix, debut_inclus, fin_inclus)
+    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appler {prefix}_TP_GED.csv")
     SaveToDB(liste,prefix)
 
     return 0

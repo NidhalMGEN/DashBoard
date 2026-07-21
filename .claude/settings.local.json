@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python Scripts/05_generation_tcd.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python Scripts/05_generation_tcd.py)",
+      "Bash(cat > *)",
+      "Bash(python -m py_compile scriptsNewPipline/07_controle_tp_ged.py)",
+      "Bash(python -c ' *)",
+      "Bash(python -)",
+      "Bash(cp \"Input_Data/tests_MEAE/29062026_Accolade - KPI V1.13.xlsx\" Input_Data/)",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "Bash(python test_suivi_state_machine.py)",
+      "PowerShell(.\\\\python\\\\python.exe -c \"import pandas as pd; df = pd.read_csv\\('Input_Data/16042026_TP_GED.csv', sep=None, engine='python', dtype=str\\); print\\(df.columns.tolist\\(\\)\\); print\\(df.head\\(2\\)\\)\")",
+      "PowerShell(Get-ChildItem Input_Data -File | Sort-Object Length -Descending | Select-Object Name, @{n='SizeMB';e={[math]::Round\\($_.Length/1MB,2\\)}}, LastWriteTime | Select-Object -First 15)",
+      "PowerShell(.\\\\python\\\\python.exe \"C:\\\\Users\\\\NMoussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-NMoussa-Downloads-pipeline-ciam-mgen-portable-sam-pipeline-ciam-mgen-portable-sam\\\\1ed4bdd0-99b6-42ab-b38d-b8f758c52660\\\\scratchpad\\\\timing_check.py\")",
+      "PowerShell(.\\\\python\\\\python.exe -m py_compile scriptsNewPipline\\\\07_controle_tp_ged.py scriptsNewPipline\\\\08_ged_retry.py)",
+      "PowerShell(if \\($?\\) { \"compile OK\" })",
+      "PowerShell(.\\\\python\\\\python.exe \"C:\\\\Users\\\\NMoussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-NMoussa-Downloads-pipeline-ciam-mgen-portable-sam-pipeline-ciam-mgen-portable-sam\\\\1ed4bdd0-99b6-42ab-b38d-b8f758c52660\\\\scratchpad\\\\smoke_test.py\")",
+      "Bash(python -m py_compile scriptsNewPipline/07_controle_tp_ged.py scriptsNewPipline/08_ged_retry.py)",
+      "Bash(sed -i 's/^from datetime import date$/from datetime import date, timedelta/' test_window.py)",
+      "Bash(python test_window.py)",
+      "Bash(python gen.py)",
+      "Bash(python guard.py)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

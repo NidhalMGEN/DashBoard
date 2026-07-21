@@ -257,15 +257,35 @@ def find_main_sheet(wb) -> str:
 # ─── PARSER ───────────────────────────────────────────────────────────────────
 
 # Patterns de recherche des KPI scalaires dans la feuille principale.
-# Chaque entrée : sous-chaîne (lower) à rechercher → clé du dict résultat.
+# Chaque entrée : regex (appliquée au texte lower) → clé du dict résultat.
+#
+# On s'ancre sur le NUMÉRO du KPI ("KPI 1", "KPI 2 Bis"…) et non sur le libellé.
+# Motif : le libellé est rédactionnel et change côté producteur du flux. Le
+# 17/07/2026 (source V1.14) le mot "AI" a été remplacé par "Accolade" dans les
+# titres KPI 1, 2 et 2 Bis ; les anciennes sous-chaînes ("nouvelles
+# souscriptions dans ai"…) ne matchaient plus, parse_kpi_scalars() renvoyait {}
+# et tout le bloc "KPI issus de la feuille source" disparaissait en silence de
+# la Synthèse. Le numéro de KPI, lui, est stable : c'est le contrat avec le flux.
+#
+# Les lookahead (?!\s*(bis|ter)) évitent qu'un motif "KPI 2" capte "KPI 2 Bis"
+# ou "KPI 2 Ter" (ce dernier n'est pas repris dans la Synthèse).
 _KPI_SCALAR_PATTERNS: List[tuple] = [
-    ("nouvelles souscriptions dans ai",                          "kpi1_nouvelles_souscriptions"),
-    ("résiliations dans ai quel que soit la date",               "kpi2_resiliations_total"),
-    ("résiliations dans ai depuis le 01/01/2024 avec souscription", "kpi2bis_resiliations_2024"),
-    ("assurés principaux sans kpep rapproché (depuis",           "kpi5_sans_kpep_2024"),
-    ("assurés principaux sans kpep rapproché (toutes",           "kpi5bis_sans_kpep_total"),
-    ("assurés principaux sans mail",                             "kpi6_sans_mail"),
+    (re.compile(r"^kpi\s*1\b(?!\s*(bis|ter))"), "kpi1_nouvelles_souscriptions"),
+    (re.compile(r"^kpi\s*2\s*bis\b"),           "kpi2bis_resiliations_2024"),
+    (re.compile(r"^kpi\s*2\b(?!\s*(bis|ter))"), "kpi2_resiliations_total"),
+    # KPI 5 / 5 Bis / 6 : volontairement non extraits — ils n'ont jamais figuré
+    # dans la Synthèse (leurs anciennes sous-chaînes ne correspondaient déjà pas
+    # au libellé source). Décommenter pour les ajouter au bloc ; les libellés
+    # correspondants existent déjà dans _KPI_LABELS (cf. write_synthese).
+    # (re.compile(r"^kpi\s*5\s*bis\b"),           "kpi5bis_sans_kpep_total"),
+    # (re.compile(r"^kpi\s*5\b(?!\s*(bis|ter))"), "kpi5_sans_kpep_2024"),
+    # (re.compile(r"^kpi\s*6\b(?!\s*(bis|ter))"), "kpi6_sans_mail"),
 ]
+
+# KPI scalaires attendus dans tout flux. Leur absence signale un changement de
+# structure du fichier source et doit être visible dans le log (cf. incident du
+# 17/07/2026 : échec silencieux pendant plusieurs jours).
+_KPI_SCALAR_REQUIRED = {key for _rx, key in _KPI_SCALAR_PATTERNS}
 
 
 def parse_kpi_scalars(ws) -> Dict[str, float]:
@@ -281,7 +301,7 @@ def parse_kpi_scalars(ws) -> Dict[str, float]:
                 continue
             cell_text = str(cell.value).strip().lower()
             for pattern, key in _KPI_SCALAR_PATTERNS:
-                if key not in result and pattern in cell_text:
+                if key not in result and pattern.search(cell_text):
                     for col in range(cell.column + 1, ws.max_column + 1):
                         v = ws.cell(row=cell.row, column=col).value
                         if isinstance(v, (int, float)) and v > 0:
@@ -1046,12 +1066,14 @@ def write_synthese(wb, df_type: pd.DataFrame, df_resil: pd.DataFrame,
     # KPI issus de la feuille source (si disponibles)
     if kpi_scalars:
         _KPI_LABELS = {
-            "kpi1_nouvelles_souscriptions":  ("KPI 1 — Nouvelles souscriptions AI depuis 01/01/2024", FMT_INT),
-            "kpi2_resiliations_total":        ("KPI 2 — Résiliations AI toutes dates",                FMT_INT),
-            "kpi2bis_resiliations_2024":      ("KPI 2 Bis — Résiliations AI depuis 01/01/2024",       FMT_INT),
-            "kpi5_sans_kpep_2024":            ("KPI 5 — Assurés sans KPEP rapproché (depuis 2024)",   FMT_INT),
-            "kpi5bis_sans_kpep_total":        ("KPI 5 Bis — Assurés sans KPEP rapproché (total)",     FMT_INT),
-            "kpi6_sans_mail":                 ("KPI 6 — Assurés principaux sans mail dans AI",        FMT_INT),
+            # Libellés alignés sur le vocabulaire du flux source depuis la V1.14
+            # (17/07/2026) : "AI" y est devenu "Accolade".
+            "kpi1_nouvelles_souscriptions":  ("KPI 1 — Nouvelles souscriptions Accolade depuis 01/01/2024", FMT_INT),
+            "kpi2_resiliations_total":        ("KPI 2 — Résiliations Accolade toutes dates",                FMT_INT),
+            "kpi2bis_resiliations_2024":      ("KPI 2 Bis — Résiliations Accolade depuis 01/01/2024",       FMT_INT),
+            "kpi5_sans_kpep_2024":            ("KPI 5 — Assurés sans KPEP rapproché (depuis 2024)",         FMT_INT),
+            "kpi5bis_sans_kpep_total":        ("KPI 5 Bis — Assurés sans KPEP rapproché (total)",           FMT_INT),
+            "kpi6_sans_mail":                 ("KPI 6 — Assurés principaux sans mail dans Accolade",        FMT_INT),
         }
         cur = _section(cur, "KPI issus de la feuille source")
         for key, (label, fmt) in _KPI_LABELS.items():
@@ -1696,6 +1718,14 @@ def main() -> None:
     kpi_scalars = parse_kpi_scalars(ws_main)
     print(f"  [KPI SOURCE] {len(kpi_scalars)} indicateurs extraits : "
           f"{list(kpi_scalars.keys())}")
+    kpi_manquants = sorted(_KPI_SCALAR_REQUIRED - set(kpi_scalars))
+    if kpi_manquants:
+        print(
+            f"\n  [WARN] KPI source introuvables : {kpi_manquants}\n"
+            f"    Les intitulés de la feuille '{ws_main.title}' ont probablement changé.\n"
+            f"    Le bloc 'KPI issus de la feuille source' de la Synthèse sera incomplet\n"
+            f"    (voire absent). → Vérifier _KPI_SCALAR_PATTERNS."
+        )
     kpi8 = parse_kpi8_dephasages(ws_main)
     if kpi8:
         print(f"  [KPI 8]  {len(kpi8)} déphasages extraits : "
