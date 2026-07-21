@@ -1,0 +1,111 @@
+PS C:\Users\NMoussa\Downloads\pipeline_ciam_mgen_portable_sam\pipeline_ciam_mgen_portable_sam> python3.14.exe .\Scripts\05_generation_tcd.py
+============================================================
+05_generation_tcd.py — Génération TCD Accolade KPI
+============================================================
+C:\Users\NMoussa\Downloads\pipeline_ciam_mgen_portable_sam\pipeline_ciam_mgen_portable_sam\Scripts\05_generation_tcd.py:1644: UserWarning: [WARN] Plusieurs fichiers KPI détectés : ['17072026_Accolade - KPI V1.14.xlsx', '07072026_Accolade - KPI V1.13.xlsx']
+  → Utilisation du plus récent : 17072026_Accolade - KPI V1.14.xlsx
+  input_file = find_input_file()
+
+[INPUT]   17072026_Accolade - KPI V1.14.xlsx  (préfixe: 17072026)
+[OUTPUT]  C:\Users\NMoussa\Downloads\pipeline_ciam_mgen_portable_sam\pipeline_ciam_mgen_portable_sam\Output\17072026_Accolade - KPI V1.14.xlsx
+
+[COPY]    Fichier dupliqué vers Output/
+[LOAD]    Feuille 'Accolade - KPI V1.14' chargée (615 lignes × 77 colonnes)
+
+[PARSER]  Extraction des blocs...
+  Recherche 'motif resiliation'... ligne 19
+  [OK] 108 lignes, schéma validé
+  Recherche 'type assure'... ligne 227
+  [OK] 132 lignes, schéma validé
+  Recherche 'tranche age'... ligne 365
+  [OK] 212 lignes, schéma validé
+
+[CHECK]   Contrôles de cohérence...
+  [KPI SOURCE] 0 indicateurs extraits : []
+  [KPI 8]  6 déphasages extraits : dep_mail=20,386, dep_tel_port=70,995, dep_tel_telp=5,200, dep_naissance=459, dep_deces=3,754, dep_adresses=83,598
+
+  [WARN] 1 offre(s) absente(s) de OFFRE_GROUPES :
+    ['INPMAS001']
+  → Ajoutez-les à la config OFFRE_GROUPES si elles doivent apparaître dans les groupements Feuil4.
+  [CHECK] Total pp non radie (ASSURE) = 3,203,817
+  [CHECK] Total ASSURE calculé = 3,203,817  (référence manuelle KPI 7 attendue ≈ 2 338 292)
+
+[CLEAN]   Suppression des anciens TCD...
+  Feuille 'Synthèse' supprimée
+  Feuille 'Feuil1' supprimée
+  Feuille 'Feuil2' supprimée
+  Feuille 'Feuil3' supprimée
+  Feuille 'Feuil4' supprimée
+  Feuille 'Feuil7' supprimée
+  Feuille 'Feuil5' supprimée
+  Feuille 'Feuil6' supprimée
+
+[TCD]     Génération des feuilles...
+  [SYNTHESE] Taux rad global=0.36% | Total résil=402,283 | Motif dominant='ANNUL' (63.24%)
+  [FEUIL1] 108 lignes écrites
+  [FEUIL2] 5 sociétés (000, 010, 044, 052, 073) | résumé global 28 motifs
+  [FEUIL3] 132 lignes écrites
+  [FEUIL4] 13 combinaisons codsoc×type | 51 offres ASSURE, total=3,203,817
+  [FEUIL7] 51 offres ASSURE (aucune exclusion), total=3,203,817
+  [FEUIL5] 212 lignes écrites
+  [FEUIL6] 20 combinaisons, 4 sociétés + résumé global
+
+[DONE]    17072026_Accolade - KPI V1.14.xlsx sauvegardé avec succès.
+
+────────────────────────────────────────────────────────────
+[KPI 4]   Recherche du fichier 'Accolade - KPI 4*.xlsx'
+────────────────────────────────────────────────────────────
+
+[INFO]    Aucun fichier '*_Accolade - KPI 4*.xlsx' trouvé dans C:\Users\NMoussa\Downloads\pipeline_ciam_mgen_portable_sam\pipeline_ciam_mgen_portable_sam\Input_Data.
+          → Étape KPI 4 ignorée.
+============================================================
+PS C:\Users\NMoussa\Downloads\pipeline_ciam_mgen_portable_sam\pipeline_ciam_mgen_portable_sam> 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
