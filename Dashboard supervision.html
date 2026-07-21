@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<!-- saved from url=(0032)http://127.0.0.1:5000/dashboard/ -->
+<html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard supervision</title>
+  <script src="./Dashboard supervision_files/chart.js@4"></script>
+  <style>
+    :root {
+      --mgen-green:#6ab023; --mgen-green-dk:#4d8019; --mgen-green-lt:#f0f7e6;
+      --bg:#111118; --bg-card:#1a1a24; --bg-sidebar:#16161f; --bg-input:#2a2a38;
+      --bg-topbar:#13131c; --border:#2a2a38; --border-active:#3a3a50;
+      --text:#f0f0f0; --text-muted:#a0a0b0; --text-dim:#666680;
+      --success:#6ab023; --warning:#f59e0b; --danger:#ef4444; --info:#60a5fa;
+      --running:#3b82f6; --skip:#6b7280;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);
+         color:var(--text);font-size:14px;display:flex;min-height:100vh}
+    a{color:inherit;text-decoration:none}
+    /* Sidebar */
+    .sidebar{width:240px;background:var(--bg-sidebar);border-right:1px solid var(--border);
+             display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50}
+    .sidebar-brand{display:flex;align-items:center;gap:10px;padding:18px 20px;
+                   border-bottom:1px solid var(--border)}
+    .sidebar-brand .logo{width:34px;height:34px;border-radius:8px;
+        background:linear-gradient(135deg,var(--mgen-green-dk),var(--mgen-green));
+        display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px}
+    .sidebar-brand h1{font-size:15px;font-weight:700}
+    .sidebar-brand p{font-size:10px;color:var(--text-dim)}
+    .nav{flex:1;padding:12px 0;overflow-y:auto}
+    .nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;
+              color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;
+              border-left:3px solid transparent;transition:all .15s}
+    .nav-item:hover{background:#1e2030;color:var(--text)}
+    .nav-item.active{background:#1e2030;color:var(--mgen-green);border-left-color:var(--mgen-green)}
+    .nav-item .ico{font-size:16px;width:20px;text-align:center}
+    .nav-item .code{font-size:10px;color:var(--text-dim);margin-left:auto}
+    .nav-footer{padding:14px 20px;border-top:1px solid var(--border);
+                font-size:10px;color:var(--text-dim)}
+    /* Main */
+    .main{flex:1;margin-left:240px;display:flex;flex-direction:column;min-width:0}
+    .topbar{height:54px;background:var(--bg-topbar);border-bottom:1px solid var(--border);
+            display:flex;align-items:center;gap:16px;padding:0 24px;position:sticky;top:0;z-index:40}
+    .topbar h2{font-size:15px;font-weight:700}
+    .topbar .spacer{flex:1}
+    .badge-env{font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;
+               background:rgba(106,176,35,.15);color:var(--mgen-green);border:1px solid rgba(106,176,35,.3)}
+    .notif-wrap{position:relative}
+    .alert-bell{font-size:13px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
+                background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);cursor:pointer}
+    .alert-bell .alert-count{font-size:11px;font-weight:800;color:var(--danger)}
+    .alert-bell.warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3)}
+    .alert-bell.warn .alert-count{color:var(--warning)}
+    .notif-panel{display:none;position:absolute;right:0;top:34px;width:340px;max-height:60vh;overflow:auto;
+                 background:var(--bg-card);border:1px solid var(--border-active);border-radius:10px;
+                 box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:200}
+    .notif-panel.open{display:block}
+    .notif-head{font-size:12px;font-weight:700;color:var(--text);padding:12px 14px;border-bottom:1px solid var(--border)}
+    .notif-foot{display:block;padding:10px 14px;font-size:12px;color:var(--info);border-top:1px solid var(--border)}
+    .notif-item{padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px}
+    .notif-item .t{font-weight:700}
+    .notif-item.err{border-left:3px solid var(--danger)}
+    .notif-item.warn{border-left:3px solid var(--warning)}
+    .notif-item.info{border-left:3px solid var(--info)}
+    .badge-cred{font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;cursor:pointer}
+    .badge-cred.ok{background:rgba(106,176,35,.15);color:var(--success);border:1px solid rgba(106,176,35,.3)}
+    .badge-cred.warn{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.3)}
+    .content{flex:1;padding:24px;overflow-y:auto}
+    /* Composants partagés */
+    .btn{font:inherit;font-weight:600;font-size:13px;padding:9px 16px;border-radius:8px;
+         border:1px solid var(--border-active);background:var(--bg-input);color:var(--text);
+         cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px}
+    .btn:hover{border-color:var(--mgen-green);color:var(--mgen-green)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:var(--mgen-green-dk);border-color:var(--mgen-green);color:#fff}
+    .btn-primary:hover{background:var(--mgen-green);color:#fff}
+    .btn-danger{border-color:var(--danger);color:var(--danger)}
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px}
+    .section-title{font-size:13px;font-weight:700;color:var(--mgen-green);
+                   text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;
+                   border-left:3px solid var(--mgen-green);padding-left:10px}
+    input[type=text],input[type=password],input[type=date],select{
+      font:inherit;background:var(--bg-input);border:1px solid var(--border-active);
+      color:var(--text);border-radius:8px;padding:8px 12px;width:100%}
+    input:focus,select:focus{outline:none;border-color:var(--mgen-green)}
+    .alert{border-radius:8px;padding:10px 14px;font-size:13px;margin:8px 0}
+    .alert-ok{background:rgba(106,176,35,.1);border-left:3px solid var(--success);color:#bfe89a}
+    .alert-warn{background:rgba(245,158,11,.1);border-left:3px solid var(--warning);color:#fcd9a0}
+    .alert-err{background:rgba(239,68,68,.1);border-left:3px solid var(--danger);color:#f5b5b5}
+    .alert-info{background:rgba(96,165,250,.1);border-left:3px solid var(--info);color:#bcd7fb}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:8px 12px;color:var(--text-muted);font-size:11px;
+       text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
+    td{padding:8px 12px;border-bottom:1px solid var(--border)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .pulse{animation:pulse 1.2s infinite}
+  </style>
+  
+<style>
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+  .kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+            padding:16px 18px;border-left:4px solid var(--skip);position:relative}
+  .kpi-card.green{border-left-color:var(--success)}
+  .kpi-card.orange{border-left-color:var(--warning)}
+  .kpi-card.red{border-left-color:var(--danger)}
+  .kpi-card.na{border-left-color:var(--text-dim);opacity:.7}
+  .kpi-card .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi-card .val{font-size:26px;font-weight:800;margin-top:6px}
+  .kpi-card .val .u{font-size:12px;font-weight:400;color:var(--text-dim)}
+  .kpi-card .dlt{font-size:11px;margin-top:4px;color:var(--text-dim)}
+  .kpi-card.drillable{cursor:pointer}
+  .kpi-card.drillable:hover{border-color:var(--mgen-green);transform:translateY(-1px)}
+  .drill-ico{font-size:10px;opacity:.5}
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center}
+  .modal{background:var(--bg-card);border:1px solid var(--border-active);border-radius:12px;
+         padding:22px;max-width:680px;width:92%;max-height:82vh;overflow:auto}
+  .modal h3{font-size:15px;color:var(--mgen-green);margin-bottom:12px}
+  .modal .x{float:right;cursor:pointer;color:var(--text-dim);font-size:18px}
+  .dlt.up{color:var(--success)} .dlt.down{color:var(--danger)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;position:absolute;top:16px;right:16px}
+  .dot.green{background:var(--success)} .dot.orange{background:var(--warning)}
+  .dot.red{background:var(--danger)} .dot.na{background:var(--text-dim)}
+  .chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px}
+  .chart-row-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:980px){.chart-row-2{grid-template-columns:1fr}}
+  .period-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .pbtn{font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;
+        border:1px solid var(--border-active);background:var(--bg-input);color:var(--text-muted);cursor:pointer}
+  .pbtn:hover{color:var(--mgen-green)}
+  .pbtn.active{background:var(--mgen-green-dk);border-color:var(--mgen-green);color:#fff}
+  .conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+  .conn-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;
+             border:1px solid var(--border);background:var(--bg-input)}
+  .conn-item .dotc{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .conn-item .dotc.ok{background:var(--success)}
+  .conn-item .dotc.ko{background:var(--danger)}
+  .conn-item .dotc.na{background:var(--text-dim)}
+  .conn-item .lab{font-size:13px;font-weight:600}
+  .conn-item .msg{font-size:11px;color:var(--text-dim);margin-top:2px;word-break:break-word}
+  .conn-item .state{margin-left:auto;font-size:11px;font-weight:700}
+  .conn-item .state.ok{color:var(--success)} .conn-item .state.ko{color:var(--danger)}
+  .conn-item .state.na{color:var(--text-dim)}
+  .meta-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;color:var(--text-muted)}
+  .meta-row b{color:var(--text)}
+</style>
+
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">PSC</div>
+      <div>
+        <h1>KPI MGEN V3</h1>
+        <p>Supervision MGEN</p>
+      </div>
+    </div>
+    <nav class="nav">
+      
+        <a class="nav-item active" href="http://127.0.0.1:5000/dashboard/">
+          <span class="ico">📊</span>
+          <span>Dashboard</span>
+          <span class="code">00</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/pipeline/">
+          <span class="ico">⚙️</span>
+          <span>Pipeline ETL</span>
+          <span class="code">01</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/sql/">
+          <span class="ico">🗄️</span>
+          <span>Requêtes SQL</span>
+          <span class="code">02</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/reports/">
+          <span class="ico">📄</span>
+          <span>Rapports CODIR</span>
+          <span class="code">03</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/scheduler/">
+          <span class="ico">⏰</span>
+          <span>Planification</span>
+          <span class="code">04</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/quality/">
+          <span class="ico">🔎</span>
+          <span>Qualité données</span>
+          <span class="code">05</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/admin/">
+          <span class="ico">🛠️</span>
+          <span>Administration</span>
+          <span class="code">06</span>
+        </a>
+      
+        <a class="nav-item " href="http://127.0.0.1:5000/ticket-sam/">
+          <span class="ico">🎫</span>
+          <span>Analyse Tickets S@M</span>
+          <span class="code">07</span>
+        </a>
+      
+    </nav>
+    <div class="nav-footer">KPI_MGEN V3 · plateforme modulaire</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <h2>Dashboard supervision</h2>
+      <div class="spacer"></div>
+      <div class="notif-wrap">
+        <div class="alert-bell" id="alert-bell" title="Notifications" style="display: flex;" onclick="toggleNotif()">
+          🔔 <span class="alert-count" id="alert-count">1</span>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-head">Notifications</div>
+          <div id="notif-list"><div class="notif-item err"><div class="t">Présence IEHE critique</div>93.57% sous le seuil bas</div></div>
+          <a class="notif-foot" href="http://127.0.0.1:5000/dashboard/">Voir le dashboard →</a>
+        </div>
+      </div>
+      
+  <a class="btn" id="btn-export-all" href="http://127.0.0.1:5000/dashboard/api/export-all" title="Exporter tous les KPI du dernier flux en Excel">⬇ Export Excel</a>
+
+  <!-- DATE PICKER -->
+  <input type="date" id="date-picker" style="background:var(--bg-input);border:1px solid var(--border-active);
+                color:var(--text);border-radius:8px;padding:2px 5px;font-size:13px;cursor:pointer" min="2026-04-28" max="2026-07-14">
+  <button class="btn" id="btn-date-reset" style="display:none">↩ Dernier run</button>
+
+  <button class="btn" id="btn-refresh">🔄 Rafraîchir</button>
+
+      
+        <span class="badge-cred ok" title="6/6 sections renseignées" onclick="reloadCreds()">✓ Credentials chargés</span>
+      
+      <span class="badge-env" id="env-badge">PROD</span>
+    </header>
+    <main class="content">
+      
+  <div id="degraded" class="alert alert-err" style="display:none"></div>
+
+  <div class="meta-row" id="meta-row"><span>📦 <b>30</b> flux en base</span><span>🕒 Dernier run : <b>14/07/2026 12:54:10</b></span><span>⏱ Fraîcheur : <b>22.4 h</b></span></div>
+
+  <div id="flags"><div class="alert alert-warn">🚩 TP GED à 0.0% — taux très bas, à valider métier (règle de rapprochement GED en cours de qualification). <a href="http://127.0.0.1:5000/dashboard/#" style="text-decoration:underline">[règle métier]</a></div></div>
+
+  <div class="chart-card" style="margin-bottom:18px">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <div class="section-title" style="margin:0">Alertes actives</div>
+      <span id="alerts-count" style="margin-left:auto;font-size:12px;color:var(--text-dim)">1 alerte(s)</span>
+    </div>
+    <div id="alerts-list"><div class="alert alert-err"><b>Présence IEHE critique</b> — 93.57% sous le seuil bas</div></div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:18px">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <div class="section-title" style="margin:0">Test de connexion aux bases</div>
+      <button class="pbtn" id="btn-conn-retest" style="margin-left:auto">↻ Re-tester</button>
+    </div>
+    <div id="conn-grid" class="conn-grid"><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">Supervision PSC (PostgreSQL)</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">IEHE (PostgreSQL)</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">Oracle MDG — QUALIF</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">Oracle MDG — PROD</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">Oracle DWH — QUALIF</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div><div class="conn-item">
+        <span class="dotc ok"></span>
+        <div style="min-width:0">
+          <div class="lab">Oracle DWH — PROD</div>
+          
+        </div>
+        <span class="state ok">✓ OK</span>
+      </div></div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="kpi-card neutral ">
+      <span class="dot neutral"></span>
+      <div class="lbl">Volume du flux </div>
+      <div class="val">140 <span class="u">lignes</span></div>
+      <div class="dlt down">▼ -1 017 vs flux préc.</div>
+    </div>
+    <div class="kpi-card neutral ">
+      <span class="dot neutral"></span>
+      <div class="lbl">Personnes uniques </div>
+      <div class="val">140 <span class="u">pers.</span></div>
+      <div class="dlt down">▼ -1 005 vs flux préc.</div>
+    </div>
+    <div class="kpi-card green drillable" data-key="taux_matching_ciam" data-label="Matching CIAM" title="Cliquer pour le détail">
+      <span class="dot green"></span>
+      <div class="lbl">Matching CIAM <span class="drill-ico">🔍</span></div>
+      <div class="val">100.00 % <span class="u">%</span></div>
+      <div class="dlt up">▲ +1.59% vs flux préc.</div>
+    </div>
+    <div class="kpi-card neutral drillable" data-key="non_rapproches" data-label="Non-rapprochés CIAM" title="Cliquer pour le détail">
+      <span class="dot neutral"></span>
+      <div class="lbl">Non-rapprochés CIAM <span class="drill-ico">🔍</span></div>
+      <div class="val">0 <span class="u">pers.</span></div>
+      <div class="dlt down">▼ -17 vs flux préc.</div>
+    </div>
+    <div class="kpi-card na drillable" data-key="score_qualite" data-label="Qualité données" title="Cliquer pour le détail">
+      <span class="dot na"></span>
+      <div class="lbl">Qualité données <span class="drill-ico">🔍</span></div>
+      <div class="val">— <span class="u">%</span></div>
+      
+    </div>
+    <div class="kpi-card red ">
+      <span class="dot red"></span>
+      <div class="lbl">Présence IEHE </div>
+      <div class="val">93.57 % <span class="u">%</span></div>
+      <div class="dlt down">▼ -3.11% vs flux préc.</div>
+    </div>
+    <div class="kpi-card neutral drillable" data-key="manquants_iehe" data-label="Manquants IEHE" title="Cliquer pour le détail">
+      <span class="dot neutral"></span>
+      <div class="lbl">Manquants IEHE <span class="drill-ico">🔍</span></div>
+      <div class="val">9 <span class="u">pers.</span></div>
+      <div class="dlt down">▼ -29 vs flux préc.</div>
+    </div>
+    <div class="kpi-card green drillable" data-key="taux_eligibilite_tp" data-label="Éligibilité TP" title="Cliquer pour le détail">
+      <span class="dot green"></span>
+      <div class="lbl">Éligibilité TP <span class="drill-ico">🔍</span></div>
+      <div class="val">62.24 % <span class="u">%</span></div>
+      <div class="dlt down">▼ -20.57% vs flux préc.</div>
+    </div>
+    <div class="kpi-card neutral drillable" data-key="eligibles_tp" data-label="Éligibles TP" title="Cliquer pour le détail">
+      <span class="dot neutral"></span>
+      <div class="lbl">Éligibles TP <span class="drill-ico">🔍</span></div>
+      <div class="val">61 <span class="u">pers.</span></div>
+      <div class="dlt down">▼ -464 vs flux préc.</div>
+    </div>
+    <div class="kpi-card red drillable" data-key="taux_ged" data-label="Rapprochement TP GED" title="Cliquer pour le détail">
+      <span class="dot red"></span>
+      <div class="lbl">Rapprochement TP GED <span class="drill-ico">🔍</span></div>
+      <div class="val">0.00 % <span class="u">%</span></div>
+      
+    </div></div>
+
+  <div class="period-bar">
+    <span style="font-size:12px;color:var(--text-muted)">Période :</span>
+    <button class="pbtn" data-days="7">7 j</button>
+    <button class="pbtn" data-days="14">14 j</button>
+    <button class="pbtn active" data-days="30">30 j</button>
+    <button class="pbtn" data-days="90">90 j</button>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Tendances — taux clés (%)</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        Axe gauche 0–100 % · <span style="color:#06b6d4">TP GED</span> sur axe droit dédié</div>
+      <canvas id="chart-rates" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+    </div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;margin-bottom:6px">
+        <div class="section-title" style="margin:0">Tendances — volumes</div>
+        <button class="pbtn" id="toggle-log" style="margin-left:auto">Échelle log</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        <span style="color:#ef4444">Non-rapprochés</span> sur axe droit dédié</div>
+      <canvas id="chart-vols" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Répartition TP GED (dernier flux)</div>
+      <canvas id="chart-donut" height="757" width="757" style="display: block; box-sizing: border-box; height: 757.5px; width: 757.5px;"></canvas>
+      <div style="text-align:center;font-size:11px;color:var(--warning);margin-top:8px">
+        ⚠ Taux de rapprochement faible — validation métier requise</div>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Radar multi-KPI — jour vs moyenne période</div>
+      <canvas id="chart-radar" height="757" width="757" style="display: block; box-sizing: border-box; height: 757.5px; width: 757.5px;"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Matching CIAM par méthode</div>
+      <canvas id="chart-method" height="757" width="757" style="display: block; box-sizing: border-box; height: 757.5px; width: 757.5px;"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Matching CIAM par société</div>
+      <canvas id="chart-societe" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+    </div>
+  </div>
+  <div class="chart-row-2">
+    <div class="chart-card">
+      <div class="section-title">Éligibles TP par mois d'adhésion</div>
+      <canvas id="chart-tpmonth" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Décomposition de la qualité KO</div>
+      <canvas id="chart-qko" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="section-title">Comparaison de flux</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux A (référence)</div>
+        <select id="cmp-a" style="min-width:200px"><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="16042026">Flux 16042026 — 27/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="19052026">Flux 19052026 — 20/05/2026</option><option value="18052026">Flux 18052026 — 19/05/2026</option><option value="17052026">Flux 17052026 — 19/05/2026</option><option value="16052026">Flux 16052026 — 19/05/2026</option><option value="15052026">Flux 15052026 — 16/05/2026</option><option value="14052026">Flux 14052026 — 16/05/2026</option><option value="13052026">Flux 13052026 — 14/05/2026</option><option value="08052026">Flux 08052026 — 13/05/2026</option></select></div>
+      <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux B (comparé)</div>
+        <select id="cmp-b" style="min-width:200px"><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="16042026">Flux 16042026 — 27/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="19052026">Flux 19052026 — 20/05/2026</option><option value="18052026">Flux 18052026 — 19/05/2026</option><option value="17052026">Flux 17052026 — 19/05/2026</option><option value="16052026">Flux 16052026 — 19/05/2026</option><option value="15052026">Flux 15052026 — 16/05/2026</option><option value="14052026">Flux 14052026 — 16/05/2026</option><option value="13052026">Flux 13052026 — 14/05/2026</option><option value="08052026">Flux 08052026 — 13/05/2026</option></select></div>
+      <button class="btn btn-primary" id="cmp-go">Comparer</button>
+      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="cmp-changed" checked=""> écarts uniquement</label>
+    </div>
+    <div class="table-wrap" id="cmp-result"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="section-title">Historique des derniers runs (pipeline &amp; SQL)</div>
+    <div class="table-wrap" id="runs-table"><table><thead><tr>
+      <th>Type</th><th>Démarré</th><th>Durée</th><th>Statut</th><th>Détail</th><th>Utilisateur</th><th>Logs</th>
+      </tr></thead><tbody><tr><td>📄 Rapport</td><td>05/07/2026 21:07:38</td><td>1.9s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Rapport CODIR généré : rapport_codir_16042026.html</td>
+          <td style="color:var(--text-dim)">127.0.0.1</td><td>—</td></tr><tr><td>📄 Rapport</td><td>05/07/2026 21:07:36</td><td>2.3s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Rapport CODIR généré : rapport_codir_16042026.html</td>
+          <td style="color:var(--text-dim)">127.0.0.1</td><td>—</td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:48:26</td><td>332.2s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 6/8 étapes OK</td>
+          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;a8e36a08b1f3&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:44:34</td><td>105.8s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 5/8 étapes OK</td>
+          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;41554e09aebc&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:01:49</td><td>178.2s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 5/8 étapes OK</td>
+          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;86e225cf3867&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 15:33:28</td><td>12.1s</td>
+          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 1/8 étapes OK</td>
+          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;9dfd92c401a0&#39;)">voir</a></td></tr></tbody></table></div>
+  </div>
+
+  <!-- Modale logs d'un run -->
+  <div class="modal-bg" id="logs-modal">
+    <div class="modal">
+      <span class="x" onclick="document.getElementById(&#39;logs-modal&#39;).style.display=&#39;none&#39;">✕</span>
+      <h3 id="logs-title">Logs du run</h3>
+      <pre id="logs-body" style="background:#0e0e16;border:1px solid var(--border);border-radius:8px;
+        padding:12px;font-family:Consolas,monospace;font-size:12px;line-height:1.6;max-height:60vh;
+        overflow:auto;white-space:pre-wrap;color:#cbd5e1"></pre>
+    </div>
+  </div>
+
+  <!-- Modale drill-down KPI -->
+  <div class="modal-bg" id="drill-modal">
+    <div class="modal">
+      <span class="x" onclick="document.getElementById(&#39;drill-modal&#39;).style.display=&#39;none&#39;">✕</span>
+      <h3 id="drill-title">Détail</h3>
+      <div id="drill-body"><div style="color:var(--text-dim)">Chargement…</div></div>
+      <div style="margin-top:14px">
+        <a class="btn btn-primary" id="drill-export" href="http://127.0.0.1:5000/dashboard/#">⬇ Exporter en Excel</a>
+      </div>
+    </div>
+  </div>
+
+    </main>
+  </div>
+  <script>
+    // Centre de notifications in-app (toutes les pages).
+    function toggleNotif(){ document.getElementById("notif-panel").classList.toggle("open"); }
+    document.addEventListener("click",function(e){
+      const w=e.target.closest(".notif-wrap");
+      if(!w) document.getElementById("notif-panel").classList.remove("open");
+    });
+    (async function pollAlerts(){
+      try{
+        const r=await fetch("/dashboard/api/alerts");
+        const j=await r.json();
+        const bell=document.getElementById("alert-bell");
+        const esc=s=>String(s==null?"":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+        document.getElementById("notif-list").innerHTML=(j.alerts||[]).length
+          ? j.alerts.map(a=>`<div class="notif-item ${a.level}"><div class="t">${esc(a.title)}</div>${esc(a.detail)}</div>`).join("")
+          : '<div class="notif-item info">Aucune notification.</div>';
+        if(j.count>0){
+          document.getElementById("alert-count").textContent=j.count;
+          const hasErr=(j.alerts||[]).some(a=>a.level==="err");
+          bell.classList.toggle("warn",!hasErr);
+          bell.style.display="flex";
+        } else { bell.style.display="none"; }
+      }catch(e){}
+    })();
+    async function reloadCreds(){
+      const r = await fetch("/admin/reload-credentials", {method:"POST"});
+      const j = await r.json();
+      const s = j.status||{};
+      alert(s.file_present
+        ? `credentials.ini rechargé : ${s.sections_complete}/${s.sections_total} section(s) renseignée(s).`
+        : "config/credentials.ini introuvable. Copiez config/credentials.ini.example en config/credentials.ini.");
+      location.reload();
+    }
+  </script>
+  
+<script>
+let chartRates=null, chartVols=null, chartDonut=null, chartRadar=null;
+let curDays=30, logScale=false, lastModel=null;
+
+function fmt(v,unit){
+  if(v===null||v===undefined) return "—";
+  if(unit==="%") return Number(v).toFixed(2)+" %";
+  return Number(v).toLocaleString("fr-FR");
+}
+function deltaHtml(d,unit){
+  if(d===null||d===undefined||d===0) return "";
+  const up = d>0;
+  const cls = up?"up":"down";
+  const arrow = up?"▲":"▼";
+  const s = (up?"+":"")+ (unit==="%"? d.toFixed(2)+"%" : Number(d).toLocaleString("fr-FR"));
+  return `<div class="dlt ${cls}">${arrow} ${s} vs flux préc.</div>`;
+}
+
+function niceMax(arr,margin=0.1){
+  const vals=arr.filter(v=>typeof v==="number" && !isNaN(v));
+  if(!vals.length) return 100;
+  return Math.max(...vals)*(1+margin);
+}
+function niceMin(arr,margin=0.1){
+  const vals=arr.filter(v=>typeof v==="number" && !isNaN(v));
+  if(!vals.length) return 0;
+  return Math.max(0, Math.min(...vals)*(1-margin));
+}
+function kfmt(v){
+  if(v>=1000) return (v/1000).toFixed(v>=10000?0:1)+"k";
+  return v;
+}
+
+let selectedDate = null;   // null = mode "dernier run"
+
+async function load() {
+  let url;
+  if (selectedDate) {
+    url = "/dashboard/api/kpis-by-date?date=" + selectedDate;
+  } else {
+    url = "/dashboard/api/kpis?days=" + curDays;
+  }
+
+  const res = await fetch(url);
+  const m = await res.json();
+  lastModel = m;
+
+  const deg = document.getElementById("degraded");
+  if (!m.available) {
+    deg.style.display = "block";
+    deg.textContent = "⚠ Base de données inaccessible — état dégradé. (" + (m.error || "") + ")";
+    document.getElementById("kpi-grid").innerHTML =
+      '<div style="color:var(--text-dim)">Indicateurs indisponibles hors connexion BDD.</div>';
+    return;
+  }
+  deg.style.display = "none";
+
+  // Métadonnées
+  const fr = m.freshness_hours;
+  const dateLabel = selectedDate
+    ? `<span style="color:var(--mgen-green);font-weight:700">📅 KPI du ${new Date(selectedDate).toLocaleDateString("fr-FR")}</span>`
+    : "";
+  document.getElementById("meta-row").innerHTML =
+    dateLabel +
+    `<span>📦 <b>${m.nb_runs}</b> flux en base</span>` +
+    (m.last_run ? `<span>🕒 Dernier run : <b>${new Date(m.last_run.date_import).toLocaleString("fr-FR")}</b></span>` : "") +
+    (fr !== null ? `<span>⏱ Fraîcheur : <b>${fr} h</b></span>` : "");
+
+
+  // Flags
+  document.getElementById("flags").innerHTML = (m.flags||[]).map(f=>{
+    const cls = f.level==="err"?"alert-err":(f.level==="warn"?"alert-warn":"alert-info");
+    const doc = f.doc? ` <a href="#" style="text-decoration:underline">[règle métier]</a>`:"";
+    return `<div class="alert ${cls}">🚩 ${f.text}${doc}</div>`;
+  }).join("");
+
+  // Cards KPI
+  const attr=s=>String(s).replace(/"/g,"&quot;");
+  document.getElementById("kpi-grid").innerHTML = m.kpis.map(k=>`
+    <div class="kpi-card ${k.badge} ${k.drillable?'drillable':''}"
+         ${k.drillable?`data-key="${attr(k.key)}" data-label="${attr(k.label)}" title="Cliquer pour le détail"`:''}>
+      <span class="dot ${k.badge}"></span>
+      <div class="lbl">${k.label} ${k.drillable?'<span class="drill-ico">🔍</span>':''}</div>
+      <div class="val">${fmt(k.value,k.unit)} <span class="u">${k.unit}</span></div>
+      ${deltaHtml(k.delta,k.unit)}
+    </div>`).join("");
+
+  renderCharts(m);
+}
+
+function renderCharts(m){
+  const t=m.trends, L=t.labels, S=t.series;
+  const line=(key,color,axis)=>({label:key,data:S[key],borderColor:color,
+    backgroundColor:color+"22",tension:.3,spanGaps:true,fill:false,pointRadius:2,yAxisID:axis});
+
+  // ── Graphe 1 : taux clés — double axe Y (TP GED à droite) ──
+  const leftKeys=["taux_matching_ciam","taux_presence_iehe","taux_eligibilite_tp","score_qualite"];
+  const leftVals=leftKeys.flatMap(k=>S[k]||[]);
+  const gedVals=S["taux_ged"]||[];
+  if(chartRates) chartRates.destroy();
+  chartRates=new Chart(document.getElementById("chart-rates"),{
+    type:"line",
+    data:{labels:L,datasets:[
+      {...line("taux_matching_ciam","#6ab023","y"),label:"Matching CIAM"},
+      {...line("taux_presence_iehe","#3b82f6","y"),label:"Présence IEHE"},
+      {...line("taux_eligibilite_tp","#f59e0b","y"),label:"Éligibilité TP"},
+      {...line("score_qualite","#a855f7","y"),label:"Qualité données"},
+      {...line("taux_ged","#06b6d4","y1"),label:"TP GED (axe droit)"},
+    ]},
+    options:{responsive:true,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:"#666680"}},
+        y:{position:"left",suggestedMin:niceMin(leftVals),suggestedMax:Math.min(100,niceMax(leftVals)),
+           ticks:{color:"#666680",callback:v=>v+"%"},title:{display:true,text:"Taux principaux",color:"#666680"}},
+        y1:{position:"right",suggestedMin:0,suggestedMax:Math.max(5,niceMax(gedVals)),grid:{drawOnChartArea:false},
+           ticks:{color:"#06b6d4",callback:v=>v+"%"},title:{display:true,text:"TP GED",color:"#06b6d4"}},
+      }}
+  });
+
+  // ── Graphe 2 : volumes — axe gauche (log togglable) + non-rap. à droite ──
+  buildVols(S,L);
+
+  // ── Donut TP GED ──
+  const dg=m.donut_ged||{};
+  const found=dg.found||0, ko=dg.ko||0;
+  if(chartDonut) chartDonut.destroy();
+  chartDonut=new Chart(document.getElementById("chart-donut"),{
+    type:"doughnut",
+    data:{labels:["Rapprochés","Non rapprochés"],datasets:[{data:[found,ko],
+      backgroundColor:["#6ab023","#ef4444"],borderColor:"#1a1a24",borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}},
+      tooltip:{callbacks:{label:c=>c.label+" : "+c.parsed.toLocaleString("fr-FR")}}}}
+  });
+
+  // ── Radar jour vs moyenne ──
+  const rd=m.radar||{axes:[],today:[],avg:[]};
+  if(chartRadar) chartRadar.destroy();
+  chartRadar=new Chart(document.getElementById("chart-radar"),{
+    type:"radar",
+    data:{labels:rd.axes,datasets:[
+      {label:"Aujourd'hui",data:rd.today,borderColor:"#6ab023",backgroundColor:"rgba(106,176,35,.2)",pointBackgroundColor:"#6ab023"},
+      {label:"Moyenne période",data:rd.avg,borderColor:"#60a5fa",borderDash:[5,4],backgroundColor:"rgba(96,165,250,.08)",pointBackgroundColor:"#60a5fa"},
+    ]},
+    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{r:{min:0,max:100,ticks:{stepSize:20,color:"#666680",backdropColor:"transparent"},
+        grid:{color:"#2a2a38"},angleLines:{color:"#2a2a38"},pointLabels:{color:"#a0a0b0",font:{size:10}}}}}
+  });
+}
+
+function buildVols(S,L){
+  const line=(key,color,axis)=>({label:key,data:S[key],borderColor:color,
+    backgroundColor:color+"22",tension:.3,spanGaps:true,fill:false,pointRadius:2,yAxisID:axis});
+  const bigVals=[...(S["volume_flux"]||[]),...(S["eligibles_tp"]||[])];
+  if(chartVols) chartVols.destroy();
+  chartVols=new Chart(document.getElementById("chart-vols"),{
+    type:"line",
+    data:{labels:L,datasets:[
+      {...line("volume_flux","#3b82f6","y"),label:"Volume flux"},
+      {...line("eligibles_tp","#6ab023","y"),label:"Éligibles TP"},
+      {...line("non_rapproches","#ef4444","y1"),label:"Non-rapprochés (axe droit)"},
+    ]},
+    options:{responsive:true,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:"#666680"}},
+        y:logScale
+          ? {position:"left",type:"logarithmic",ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Volumes (log)",color:"#666680"}}
+          : {position:"left",suggestedMin:0,suggestedMax:niceMax(bigVals),ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Volumes",color:"#666680"}},
+        y1:{position:"right",suggestedMin:0,suggestedMax:Math.max(500,niceMax(S["non_rapproches"]||[])),
+            grid:{drawOnChartArea:false},ticks:{color:"#ef4444"},title:{display:true,text:"Non-rap.",color:"#ef4444"}},
+      }}
+  });
+}
+
+// Sélecteur de période
+document.querySelectorAll(".pbtn[data-days]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".pbtn[data-days]").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");curDays=parseInt(b.dataset.days);load();
+}));
+// Toggle log/linéaire (sans rechargement réseau)
+document.getElementById("toggle-log").addEventListener("click",function(){
+  logScale=!logScale;
+  this.textContent=logScale?"Échelle linéaire":"Échelle log";
+  this.classList.toggle("active",logScale);
+  if(lastModel) buildVols(lastModel.trends.series,lastModel.trends.labels);
+});
+
+// ── Test de connexion aux bases (au lancement) ──
+async function loadConnections(){
+  const grid=document.getElementById("conn-grid");
+  grid.innerHTML='<div style="color:var(--text-dim)">Test des connexions en cours…</div>';
+  try{
+    const r=await fetch("/dashboard/api/connections");
+    const j=await r.json();
+    grid.innerHTML=j.results.map(c=>{
+      const cls=!c.configured?"na":(c.ok?"ok":"ko");
+      const state=!c.configured?"NON CONFIG.":(c.ok?"✓ OK":"✗ KO");
+      return `<div class="conn-item">
+        <span class="dotc ${cls}"></span>
+        <div style="min-width:0">
+          <div class="lab">${c.label}</div>
+          ${c.ok?"":`<div class="msg">${(c.msg||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</div>`}
+        </div>
+        <span class="state ${cls}">${state}</span>
+      </div>`;
+    }).join("");
+  }catch(e){
+    grid.innerHTML='<div class="alert alert-err">Impossible de tester les connexions.</div>';
+  }
+}
+document.getElementById("btn-conn-retest").addEventListener("click",loadConnections);
+
+// ── Historique des runs ──
+async function loadRuns(){
+  const box=document.getElementById("runs-table");
+  try{
+    const r=await fetch("/dashboard/api/runs");
+    const j=await r.json();
+    if(!j.runs.length){box.innerHTML='<div style="color:var(--text-dim)">Aucun run enregistré.</div>';return;}
+    const kindLabel=k=>({pipeline:'⚙️ Pipeline',sql:'🗄️ SQL',report:'📄 Rapport',
+      scheduled_pipeline:'⏰ Pipeline planifié',scheduled_sql:'⏰ SQL planifié'}[k]||k);
+    box.innerHTML=`<table><thead><tr>
+      <th>Type</th><th>Démarré</th><th>Durée</th><th>Statut</th><th>Détail</th><th>Utilisateur</th><th>Logs</th>
+      </tr></thead><tbody>`+
+      j.runs.map(x=>{
+        const ok=x.success;
+        const badge=`<span style="color:${ok?'var(--success)':'var(--danger)'};font-weight:700">${ok?'✓ OK':'✗ Échec'}</span>`;
+        const d=new Date(x.ts_start).toLocaleString('fr-FR');
+        const logs=x.has_logs?`<a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs('${x.id}')">voir</a>`:'—';
+        return `<tr><td>${kindLabel(x.kind)}</td><td>${d}</td><td>${x.duration_s||0}s</td>
+          <td>${badge}</td><td>${(x.summary||'').replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</td>
+          <td style="color:var(--text-dim)">${x.user||''}</td><td>${logs}</td></tr>`;
+      }).join("")+`</tbody></table>`;
+  }catch(e){box.innerHTML='<div class="alert alert-err">Historique indisponible.</div>';}
+}
+
+// ── Centre d'alertes ──
+async function loadAlerts(){
+  const box=document.getElementById("alerts-list"), cnt=document.getElementById("alerts-count");
+  try{
+    const r=await fetch("/dashboard/api/alerts");
+    const j=await r.json();
+    cnt.textContent=j.count+" alerte(s)";
+    if(!j.alerts.length){box.innerHTML='<div class="alert alert-ok">✓ Aucune alerte — indicateurs dans les normes.</div>';return;}
+    box.innerHTML=j.alerts.map(a=>{
+      const cls=a.level==="err"?"alert-err":(a.level==="warn"?"alert-warn":"alert-info");
+      return `<div class="alert ${cls}"><b>${a.title}</b> — ${(a.detail||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</div>`;
+    }).join("");
+  }catch(e){box.innerHTML='<div class="alert alert-err">Centre d\'alertes indisponible.</div>';}
+}
+
+// ── Enrichissement : graphiques de détail du flux (#5) ──
+let chMethod,chSociete,chTpMonth,chQko;
+async function loadDetails(){
+  try{
+    const r=await fetch("/dashboard/api/details");
+    const d=await r.json();
+    if(!d.available) return;
+    const axOpt=(suff="")=>({responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}}},
+      scales:{x:{ticks:{color:"#666680"}},y:{ticks:{color:"#666680"}}}});
+    if(chMethod)chMethod.destroy();
+    chMethod=new Chart(document.getElementById("chart-method"),{type:"doughnut",
+      data:{labels:d.by_method.labels,datasets:[{data:d.by_method.data,
+        backgroundColor:["#6ab023","#3b82f6","#f59e0b","#a855f7","#06b6d4","#ef4444","#84cc16"],
+        borderColor:"#1a1a24",borderWidth:2}]},
+      options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:10}}}}}});
+    if(chSociete)chSociete.destroy();
+    chSociete=new Chart(document.getElementById("chart-societe"),{type:"bar",
+      data:{labels:d.by_societe.labels,datasets:[
+        {label:"Rapprochés",data:d.by_societe.rapproches,backgroundColor:"#6ab023aa"},
+        {label:"Non-rapprochés",data:d.by_societe.non_rap,backgroundColor:"#ef4444aa"}]},
+      options:axOpt()});
+    if(chTpMonth)chTpMonth.destroy();
+    chTpMonth=new Chart(document.getElementById("chart-tpmonth"),{type:"bar",
+      data:{labels:d.tp_by_month.labels,datasets:[{label:"Éligibles TP",data:d.tp_by_month.data,
+        backgroundColor:"#3b82f6aa"}]},options:axOpt()});
+    if(chQko)chQko.destroy();
+    chQko=new Chart(document.getElementById("chart-qko"),{type:"bar",
+      data:{labels:d.quality_ko.labels,datasets:[{label:"Comptes KO",data:d.quality_ko.data,
+        backgroundColor:"#f59e0baa"}]},
+      options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:"#666680"}},y:{ticks:{color:"#a0a0b0",font:{size:10}}}}}});
+  }catch(e){}
+}
+
+// ── Drill-down par KPI (#6) ──
+async function openDrill(key,label){
+  const modal=document.getElementById("drill-modal");
+  document.getElementById("drill-title").textContent="Détail — "+label;
+  document.getElementById("drill-body").innerHTML='<div style="color:var(--text-dim)">Chargement…</div>';
+  document.getElementById("drill-export").href="/dashboard/api/kpi-detail/export?key="+encodeURIComponent(key);
+  modal.style.display="flex";
+  try{
+    const r=await fetch("/dashboard/api/kpi-detail?key="+encodeURIComponent(key));
+    const d=await r.json();
+    const body=document.getElementById("drill-body");
+    if(!d.available){body.innerHTML=`<div class="alert alert-warn">${d.reason||"Aucun détail."}</div>`;return;}
+    const esc=s=>String(s==null?"—":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    body.innerHTML=`<table><thead><tr>${d.columns.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead>`+
+      `<tbody>${d.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  }catch(e){document.getElementById("drill-body").innerHTML='<div class="alert alert-err">Détail indisponible.</div>';}
+}
+document.getElementById("drill-modal").addEventListener("click",e=>{
+  if(e.target.id==="drill-modal") e.target.style.display="none";});
+// Délégation d'événements : un seul écouteur sur la grille (pas d'onclick inline).
+document.getElementById("kpi-grid").addEventListener("click",e=>{
+  const card=e.target.closest(".kpi-card.drillable");
+  if(card) openDrill(card.dataset.key, card.dataset.label);
+});
+
+// ── Logs d'un run (#2) ──
+async function showLogs(id){
+  const modal=document.getElementById("logs-modal");
+  document.getElementById("logs-body").textContent="Chargement…";
+  modal.style.display="flex";
+  try{
+    const r=await fetch("/dashboard/api/run-logs?id="+encodeURIComponent(id));
+    if(!r.ok) throw new Error();
+    const j=await r.json();
+    document.getElementById("logs-title").textContent="Logs — "+(j.summary||id);
+    document.getElementById("logs-body").textContent=(j.logs||[]).join("\n")||"(aucun log)";
+  }catch(e){document.getElementById("logs-body").textContent="Logs indisponibles.";}
+}
+document.getElementById("logs-modal").addEventListener("click",e=>{
+  if(e.target.id==="logs-modal") e.target.style.display="none";});
+
+// ── Comparaison de flux (#1) ──
+async function loadFluxList(){
+  try{
+    const r=await fetch("/dashboard/api/flux-list");
+    const j=await r.json();
+    if(!j.available||!j.flux.length) return;
+    const opt=f=>`<option value="${f.flux_id}">Flux ${f.flux_id} — ${new Date(f.date_import).toLocaleDateString('fr-FR')}</option>`;
+    document.getElementById("cmp-a").innerHTML=j.flux.map(opt).join("");
+    document.getElementById("cmp-b").innerHTML=j.flux.map(opt).join("");
+    if(j.flux.length>1){document.getElementById("cmp-a").selectedIndex=1;document.getElementById("cmp-b").selectedIndex=0;}
+  }catch(e){}
+}
+document.getElementById("cmp-go").addEventListener("click",async()=>{
+  const a=document.getElementById("cmp-a").value,b=document.getElementById("cmp-b").value;
+  const box=document.getElementById("cmp-result");
+  box.innerHTML='<div style="color:var(--text-dim)">Comparaison…</div>';
+  try{
+    const r=await fetch("/dashboard/api/compare?a="+encodeURIComponent(a)+"&b="+encodeURIComponent(b));
+    if(!r.ok) throw new Error();
+    const j=await r.json();
+    if(!j.available){box.innerHTML=`<div class="alert alert-warn">${j.reason||"Indisponible"}</div>`;return;}
+    const onlyChanged=document.getElementById("cmp-changed").checked;
+    const esc=s=>String(s==null?"—":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    const rows=j.rows.filter(r=>!onlyChanged||r.changed);
+    if(!rows.length){box.innerHTML='<div class="alert alert-ok">Aucun écart entre ces deux flux.</div>';return;}
+    box.innerHTML=`<table><thead><tr><th>Indicateur</th><th style="text-align:right">Flux A</th>
+      <th style="text-align:right">Flux B</th><th style="text-align:right">Δ</th></tr></thead><tbody>`+
+      rows.map(r=>{
+        let d="—";
+        if(r.delta!==null&&r.delta!==undefined&&r.delta!==0){
+          const up=r.delta>0;d=`<span style="color:${up?'#6ab023':'#ef4444'}">${up?'▲ +':'▼ '}${r.delta}</span>`;
+        }
+        return `<tr><td style="text-align:left">${esc(r.path)}</td>
+          <td style="text-align:right">${esc(r.a)}</td><td style="text-align:right">${esc(r.b)}</td>
+          <td style="text-align:right">${d}</td></tr>`;
+      }).join("")+`</tbody></table>`;
+  }catch(e){box.innerHTML='<div class="alert alert-err">Erreur lors de la comparaison des flux.</div>';}
+});
+
+document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();});
+load();
+loadConnections();
+loadRuns();
+loadAlerts();
+loadDetails();
+loadFluxList();
+// Date picker
+document.getElementById("date-picker").addEventListener("change", function () {
+  selectedDate = this.value || null;
+  document.getElementById("btn-date-reset").style.display = selectedDate ? "inline-flex" : "none";
+  load();
+});
+
+document.getElementById("btn-date-reset").addEventListener("click", function () {
+  selectedDate = null;
+  document.getElementById("date-picker").value = "";
+  this.style.display = "none";
+  load();
+});
+
+// Optionnel : griser les dates sans données
+fetch("/dashboard/api/available-dates")
+  .then(r => r.json())
+  .then(d => {
+    if (d.dates && d.dates.length) {
+      // Le input type=date natif ne supporte pas les dates désactivées individuellement,
+      // mais on peut borner le min/max
+      const sorted = d.dates.slice().sort();
+      document.getElementById("date-picker").min = sorted[0];
+      document.getElementById("date-picker").max = sorted[sorted.length - 1];
+    }
+  })
+  .catch(() => {});
+</script>
+
+
+</body></html>
