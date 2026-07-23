@@ -133,6 +133,24 @@ def api_kpi_detail_export():
     except Exception as exc:
         return jsonify({"error": f"Export impossible : {exc}"}), 500
 
+@bp.route("/api/ged-flux-list")
+def api_ged_flux_list():
+    """Flux ayant une population TP GED (sélecteur du graphe de résorption)."""
+    return jsonify(queries.ged_flux_list())
+
+
+@bp.route("/api/ged-timeline")
+def api_ged_timeline():
+    """Évolution OK/KO d'un flux sur les N derniers jours ouvrés.
+    `?flux=DDMMYYYY` (défaut : le flux le plus récent), `?days=` (défaut 30)."""
+    try:
+        days = int(request.args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 365))
+    return jsonify(queries.ged_ok_ko_timeline(request.args.get("flux") or None, days=days))
+
+
 @bp.route("/api/available-dates")
 def api_available_dates():
     base_dir = current_app.config["BASE_DIR"]

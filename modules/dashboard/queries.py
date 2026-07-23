@@ -118,6 +118,20 @@ def _extract(payload: dict) -> dict:
     return {key: _nav(payload, path) for key, path in _KPI_PATHS.items()}
 
 
+def _run_label(run: dict) -> str:
+    """Libellé d'axe X d'un run : JJ/MM de sa date *logique* (flux_id, au
+    format DDMMYYYY), pas de date_import qui est l'horodatage de chargement.
+    Plusieurs flux peuvent être chargés le même jour — labelliser sur
+    date_import produisait des ticks en double sur l'axe."""
+    fid = str(run.get("flux_id") or "")
+    if len(fid) == 8 and fid.isdigit():
+        return f"{fid[:2]}/{fid[2:4]}"
+    try:
+        return datetime.datetime.fromisoformat(run["date_import"]).strftime("%d/%m")
+    except Exception:
+        return str(run.get("date_import"))[:10]
+
+
 def fetch_runs(limit: int = 30) -> dict:
     """Récupère les N derniers flux (le plus récent en premier).
 
@@ -131,7 +145,9 @@ def fetch_runs(limit: int = 30) -> dict:
             rows = conn.execute(text(
                 "SELECT flux_id, date_import, payload "
                 "FROM rptpsc.output_kpi_json "
-                "ORDER BY date_import DESC "
+                # Tri sur la date logique du flux, cohérent avec l'axe X
+                # (_run_label) et avec fetch_runs_up_to().
+                "ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC "
                 "LIMIT :lim"
             ), {"lim": limit}).fetchall()
     except Exception as exc:
@@ -389,12 +405,7 @@ def build_dashboard(limit: int = 30) -> dict:
 
     # Tendances (ordre chronologique croissant pour les sparklines).
     chrono = list(reversed(runs))
-    labels = []
-    for r in chrono:
-        try:
-            labels.append(datetime.datetime.fromisoformat(r["date_import"]).strftime("%d/%m"))
-        except Exception:
-            labels.append(str(r["date_import"])[:10])
+    labels = [_run_label(r) for r in chrono]
     series = {key: [r["kpi"].get(key) for r in chrono] for key in _KPI_PATHS}
 
     # Donut TP GED (état du dernier flux) + radar (jour vs moyenne période).
@@ -778,12 +789,19 @@ def fetch_available_dates(base_dir=None) -> dict:
 # Sélection par date — réutilise exactement la logique de build_dashboard()
 # -----------------------------------------------------------------------
 
-def _build_dashboard_from_runs(runs: list, check_freshness: bool = True) -> dict:
+def _build_dashboard_from_runs(runs: list, check_freshness: bool = True,
+                               trend_runs: list | None = None) -> dict:
     """Corps de build_dashboard(), extrait pour être partagé entre le mode
     'derniers runs' et le mode 'ancré sur une date'. runs[0] = le run
-    affiché, runs[1] = celui contre lequel le delta est calculé."""
+    affiché, runs[1] = celui contre lequel le delta est calculé.
+
+    trend_runs : historique utilisé pour les courbes (axe X) et la moyenne
+    du radar. Par défaut = runs. En mode 'ancré sur une date' on y passe
+    l'historique complet : sélectionner une date passée ne doit pas tronquer
+    l'axe X des graphiques, seules les cartes KPI se recalent sur la date."""
     last = runs[0]
     prev = runs[1] if len(runs) > 1 else None
+    hist = trend_runs if trend_runs else runs
 
     freshness = None
     try:
@@ -820,13 +838,8 @@ def _build_dashboard_from_runs(runs: list, check_freshness: bool = True) -> dict
             "drillable": key in DRILLABLE_KPIS,
         })
 
-    chrono = list(reversed(runs))
-    labels = []
-    for r in chrono:
-        try:
-            labels.append(datetime.datetime.fromisoformat(r["date_import"]).strftime("%d/%m"))
-        except Exception:
-            labels.append(str(r["date_import"])[:10])
+    chrono = list(reversed(hist))
+    labels = [_run_label(r) for r in chrono]
     series = {key: [r["kpi"].get(key) for r in chrono] for key in _KPI_PATHS}
 
     lk = last["kpi"]
@@ -871,7 +884,7 @@ def _build_dashboard_from_runs(runs: list, check_freshness: bool = True) -> dict
         "available": True, "error": None,
         "freshness_hours": freshness,
         "last_run": {"flux_id": last["flux_id"], "date_import": last["date_import"]},
-        "nb_runs": len(runs),
+        "nb_runs": len(hist),
         "kpis": kpis,
         "trends": {"labels": labels, "series": series},
         "donut_ged": donut_ged,
@@ -880,27 +893,37 @@ def _build_dashboard_from_runs(runs: list, check_freshness: bool = True) -> dict
     }
 
 
-def fetch_runs_up_to(date_str: str, limit: int = 30, base_dir=None) -> dict:
+def fetch_runs_up_to(date_str: str | None, limit: int = 30, base_dir=None) -> dict:
     """Fenêtre de `limit` runs dont le flux_id (date logique DDMMYYYY) est
     <= date_str. runs[0] = le flux exact de cette date si présent. Tri sur
     flux_id, pas date_import — date_import est l'horodatage de chargement,
-    pas la date logique du flux (cf. correction précédente)."""
-    try:
-        dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return {"available": False, "error": "Format invalide, attendu YYYY-MM-DD", "runs": [], "exact_fid": None}
-    fid = dt.strftime("%d%m%Y")
+    pas la date logique du flux (cf. correction précédente).
+
+    date_str = None : pas de borne haute, on renvoie tout l'historique
+    disponible (utilisé pour alimenter les courbes en mode date)."""
+    dt = fid = None
+    if date_str is not None:
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"available": False, "error": "Format invalide, attendu YYYY-MM-DD", "runs": [], "exact_fid": None}
+        fid = dt.strftime("%d%m%Y")
 
     try:
         from sqlalchemy import text
+        params = {"lim": limit}
+        where = ""
+        if fid is not None:
+            where = "WHERE TO_DATE(flux_id, 'DDMMYYYY') <= TO_DATE(:fid, 'DDMMYYYY') "
+            params["fid"] = fid
         with _engine().connect() as conn:
             rows = conn.execute(text(
                 "SELECT flux_id, date_import, payload "
                 "FROM rptpsc.output_kpi_json "
-                "WHERE TO_DATE(flux_id, 'DDMMYYYY') <= TO_DATE(:fid, 'DDMMYYYY') "
+                + where +
                 "ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC "
                 "LIMIT :lim"
-            ), {"fid": fid, "lim": limit}).fetchall()
+            ), params).fetchall()
         runs = [{
             "flux_id": r[0],
             "date_import": r[1].isoformat() if hasattr(r[1], "isoformat") else str(r[1]),
@@ -921,7 +944,7 @@ def fetch_runs_up_to(date_str: str, limit: int = 30, base_dir=None) -> dict:
                 m = pat.match(f.name)
                 if m:
                     fdt = datetime.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
-                    if fdt <= dt:
+                    if dt is None or fdt <= dt:
                         candidates.append((fdt, f))
         candidates.sort(key=lambda x: x[0], reverse=True)
         runs = []
@@ -950,7 +973,12 @@ def build_dashboard_for_date(date_str: str, limit: int = 30, base_dir=None) -> d
                 "last_run": None, "nb_runs": 0, "kpis": [],
                 "trends": {"labels": [], "series": {}},
                 "flags": [{"level": "warn", "text": f"Aucun flux pour le {date_str}.", "doc": None}]}
-    return _build_dashboard_from_runs(runs, check_freshness=False)
+    # Les cartes KPI se calent sur la date choisie (runs), mais les courbes
+    # gardent tout l'historique : l'axe X reste identique quelle que soit la
+    # date sélectionnée.
+    hist = fetch_runs_up_to(None, limit=limit, base_dir=base_dir)["runs"]
+    return _build_dashboard_from_runs(runs, check_freshness=False,
+                                      trend_runs=hist or runs)
 
 
 
@@ -1027,12 +1055,7 @@ def build_dashboard(limit: int = 30) -> dict:
 
     # Tendances (ordre chronologique croissant pour les sparklines).
     chrono = list(reversed(runs))
-    labels = []
-    for r in chrono:
-        try:
-            labels.append(datetime.datetime.fromisoformat(r["date_import"]).strftime("%d/%m"))
-        except Exception:
-            labels.append(str(r["date_import"])[:10])
+    labels = [_run_label(r) for r in chrono]
     series = {key: [r["kpi"].get(key) for r in chrono] for key in _KPI_PATHS}
 
     # Donut TP GED (état du dernier flux) + radar (jour vs moyenne période).
@@ -1086,4 +1109,145 @@ def build_dashboard(limit: int = 30) -> dict:
         "donut_ged": donut_ged,
         "radar": radar,
         "flags": flags,
+    }
+
+
+# -----------------------------------------------------------------------
+# Résorption TP GED — évolution OK/KO d'un flux sur N jours ouvrés
+# -----------------------------------------------------------------------
+
+GED_SCHEMA = "rptpsc"
+GED_TABLE = "suivi_tp_ged"
+
+
+def _business_days(n: int, end: datetime.date | None = None) -> list:
+    """Les `n` derniers jours ouvrés (samedi/dimanche exclus), du plus ancien
+    au plus récent, `end` inclus s'il tombe un jour ouvré."""
+    end = end or datetime.date.today()
+    days = []
+    d = end
+    while len(days) < n:
+        if d.weekday() < 5:          # 0=lundi … 4=vendredi
+            days.append(d)
+        d -= datetime.timedelta(days=1)
+    return list(reversed(days))
+
+
+def _business_days_from(start: datetime.date, n: int,
+                        end: datetime.date | None = None) -> list:
+    """Les `n` premiers jours ouvrés À PARTIR de `start` (inclus), tronqués à
+    `end` (défaut : aujourd'hui). Un flux récent n'a pas encore 30 jours ouvrés
+    derrière lui : la courbe s'arrête alors à aujourd'hui."""
+    end = end or datetime.date.today()
+    days = []
+    d = start
+    while len(days) < n and d <= end:
+        if d.weekday() < 5:
+            days.append(d)
+        d += datetime.timedelta(days=1)
+    return days
+
+
+def ged_flux_list() -> dict:
+    """Flux présents dans la table de suivi GED (≠ flux_list(), qui liste les
+    flux KPI : tous les flux KPI n'ont pas forcément de population TP GED)."""
+    try:
+        from sqlalchemy import text
+        with _engine().connect() as conn:
+            rows = conn.execute(text(
+                f"SELECT flux_id, count(*) AS tot, count(date_found) AS ok "
+                f"FROM {GED_SCHEMA}.{GED_TABLE} "
+                f"GROUP BY flux_id "
+                f"ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC"
+            )).fetchall()
+    except Exception as exc:
+        return {"available": False, "error": str(exc), "flux": []}
+    return {"available": True, "error": None, "flux": [
+        {"flux_id": r[0], "total": r[1], "ok": r[2], "ko": r[1] - r[2]} for r in rows
+    ]}
+
+
+def ged_ok_ko_timeline(flux_id: str | None = None, days: int = 30) -> dict:
+    """Évolution OK/KO d'un flux sur les `days` derniers jours ouvrés.
+
+    Règle métier : une carte est OK au jour D si sa `date_found` est
+    renseignée ET <= D. Une `date_found` postérieure à D (ou NULL) compte
+    donc en KO au jour D — l'état est reconstitué tel qu'il était ce jour-là,
+    pas tel qu'il est aujourd'hui.
+
+    La population (dénominateur) est fixe : toutes les cartes du flux.
+    OK + KO = total pour chaque jour.
+    """
+    try:
+        from sqlalchemy import text
+        with _engine().connect() as conn:
+            if not flux_id:
+                row = conn.execute(text(
+                    f"SELECT flux_id FROM {GED_SCHEMA}.{GED_TABLE} "
+                    f"ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC LIMIT 1"
+                )).fetchone()
+                if not row:
+                    return {"available": True, "error": None, "flux_id": None,
+                            "labels": [], "ok": [], "ko": [], "total": 0,
+                            "reason": "Aucun flux dans le suivi TP GED."}
+                flux_id = row[0]
+            rows = conn.execute(text(
+                f"SELECT date_found FROM {GED_SCHEMA}.{GED_TABLE} WHERE flux_id = :fid"
+            ), {"fid": flux_id}).fetchall()
+    except Exception as exc:
+        return {"available": False, "error": str(exc), "flux_id": flux_id,
+                "labels": [], "ok": [], "ko": [], "total": 0}
+
+    if not rows:
+        return {"available": True, "error": None, "flux_id": flux_id,
+                "labels": [], "ok": [], "ko": [], "total": 0,
+                "reason": f"Aucune carte TP GED pour le flux {flux_id}."}
+
+    total = len(rows)
+    found = []
+    for (d,) in rows:
+        if d is None:
+            continue
+        if isinstance(d, datetime.datetime):
+            d = d.date()
+        elif not isinstance(d, datetime.date):
+            try:
+                d = datetime.date.fromisoformat(str(d)[:10])
+            except ValueError:
+                continue
+        found.append(d)
+    found.sort()
+
+    # Fenêtre ancrée sur la date logique du flux (flux_id = DDMMYYYY) et
+    # déroulée vers l'avant : le flux du 13/07 s'observe à partir du 13/07.
+    # Elle s'arrête à aujourd'hui si le flux a moins de `days` jours ouvrés.
+    today = datetime.date.today()
+    try:
+        flux_date = datetime.datetime.strptime(str(flux_id).strip(), "%d%m%Y").date()
+    except (ValueError, TypeError):
+        flux_date = None
+
+    if flux_date is None:
+        window = _business_days(days)          # flux_id non daté : repli sur J-N
+    elif flux_date > today:
+        return {"available": True, "error": None, "flux_id": flux_id,
+                "labels": [], "ok": [], "ko": [], "total": total,
+                "reason": f"Flux daté du {flux_date:%d/%m/%Y}, postérieur à aujourd'hui."}
+    else:
+        window = _business_days_from(flux_date, days, end=today)
+
+    import bisect
+    ok = [bisect.bisect_right(found, d) for d in window]
+    complete = flux_date is not None and len(window) == days
+    return {
+        "available": True, "error": None,
+        "flux_id": flux_id,
+        "flux_date": flux_date.isoformat() if flux_date else None,
+        "total": total,
+        "labels": [d.strftime("%d/%m") for d in window],
+        "ok": ok,
+        "ko": [total - v for v in ok],
+        # False = la fenêtre est tronquée à aujourd'hui (flux trop récent).
+        "complete": complete,
+        "days_requested": days,
     }

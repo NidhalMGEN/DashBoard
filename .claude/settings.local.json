@@ -20,7 +20,13 @@
       "Bash(sed -i 's/^from datetime import date$/from datetime import date, timedelta/' test_window.py)",
       "Bash(python test_window.py)",
       "Bash(python gen.py)",
-      "Bash(python guard.py)"
+      "Bash(python guard.py)",
+      "Bash(python3.exe -c ' *)",
+      "Bash(xxd)",
+      "Read(//c/Program Files/LibreOffice/program/**)",
+      "Bash(python3.exe -c \"import odf; print\\('odfpy OK', odf.__file__\\)\")",
+      "Bash(./python/python.exe -c \"import flask; print\\('flask', flask.__version__\\)\")",
+      "Bash(./python/python.exe -c ' *)"
     ],
     "additionalDirectories": [
       "\\tmp"

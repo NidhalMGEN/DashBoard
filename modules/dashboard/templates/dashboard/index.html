@@ -154,6 +154,23 @@
   </div>
 
   <div class="chart-card">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px">
+      <div class="section-title" style="margin:0" id="ged-title">Résorption TP GED — OK / KO par jour ouvré</div>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:flex-end">
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Fenêtre</div>
+          <select id="ged-days">
+            <option value="10">10 j ouvrés</option>
+            <option value="20">20 j ouvrés</option>
+            <option value="30" selected>30 j ouvrés</option>
+            <option value="60">60 j ouvrés</option>
+          </select></div>
+      </div>
+    </div>
+    <canvas id="chart-ged-timeline" height="110"></canvas>
+    <div id="ged-timeline-msg" style="font-size:12px;color:var(--text-dim);margin-top:8px"></div>
+  </div>
+
+  <div class="chart-card">
     <div class="section-title">Comparaison de flux</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
       <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux A (référence)</div>
@@ -528,6 +545,55 @@ async function showLogs(id){
 document.getElementById("logs-modal").addEventListener("click",e=>{
   if(e.target.id==="logs-modal") e.target.style.display="none";});
 
+// ── Résorption TP GED : OK/KO par jour ouvré, pour un flux donné ──
+let chartGedTl=null;
+
+// Le flux affiché est celui du calendrier (#date-picker). Sans sélection,
+// le back-end retombe sur le flux le plus récent du suivi TP GED.
+async function loadGedTimeline(){
+  const days=document.getElementById("ged-days").value;
+  const msg=document.getElementById("ged-timeline-msg");
+  const title=document.getElementById("ged-title");
+  let flux="";
+  if(selectedDate){
+    const [y,m,d]=selectedDate.split("-");
+    flux=`${d}${m}${y}`;
+  }
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_ged_timeline') }}?days="+days+
+      (flux?"&flux="+encodeURIComponent(flux):""));
+    const j=await r.json();
+    const fd=j.flux_id&&j.flux_id.length===8
+      ? `${j.flux_id.slice(0,2)}/${j.flux_id.slice(2,4)}/${j.flux_id.slice(4)}` : null;
+    title.textContent="Résorption TP GED — OK / KO par jour ouvré"+(fd?` — flux du ${fd}`:"");
+    if(!j.available){msg.textContent="Suivi TP GED inaccessible.";return;}
+    if(!j.labels.length){msg.textContent=j.reason||"Aucune donnée sur la période.";
+      if(chartGedTl){chartGedTl.destroy();chartGedTl=null;} return;}
+    msg.textContent="";
+
+    if(chartGedTl) chartGedTl.destroy();
+    chartGedTl=new Chart(document.getElementById("chart-ged-timeline"),{
+      type:"line",
+      data:{labels:j.labels,datasets:[
+        {label:"OK (rapprochées)",data:j.ok,borderColor:"#6ab023",
+         backgroundColor:"rgba(106,176,35,.25)",fill:true,tension:.2,pointRadius:2},
+        {label:"KO (en attente)",data:j.ko,borderColor:"#ef4444",
+         backgroundColor:"rgba(239,68,68,.18)",fill:true,tension:.2,pointRadius:2},
+      ]},
+      options:{responsive:true,interaction:{mode:"index",intersect:false},
+        plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label} : ${c.parsed.y.toLocaleString("fr-FR")}`+
+            (j.total?` (${(c.parsed.y*100/j.total).toFixed(1)} %)`:"")}}},
+        scales:{
+          x:{ticks:{color:"#666680",maxRotation:0,autoSkipPadding:12}},
+          y:{stacked:false,beginAtZero:true,
+             ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Cartes TP",color:"#666680"}}}}
+    });
+  }catch(e){msg.textContent="Chargement impossible.";}
+}
+document.getElementById("ged-days").addEventListener("change",loadGedTimeline);
+
 // ── Comparaison de flux (#1) ──
 async function loadFluxList(){
   try{
@@ -567,18 +633,20 @@ document.getElementById("cmp-go").addEventListener("click",async()=>{
   }catch(e){box.innerHTML='<div class="alert alert-err">Erreur lors de la comparaison des flux.</div>';}
 });
 
-document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();});
+document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();loadGedTimeline();});
 load();
 loadConnections();
 loadRuns();
 loadAlerts();
 loadDetails();
 loadFluxList();
-// Date picker
+loadGedTimeline();
+// Date picker — pilote aussi le graphe de résorption TP GED.
 document.getElementById("date-picker").addEventListener("change", function () {
   selectedDate = this.value || null;
   document.getElementById("btn-date-reset").style.display = selectedDate ? "inline-flex" : "none";
   load();
+  loadGedTimeline();
 });
 
 document.getElementById("btn-date-reset").addEventListener("click", function () {
@@ -586,6 +654,7 @@ document.getElementById("btn-date-reset").addEventListener("click", function () 
   document.getElementById("date-picker").value = "";
   this.style.display = "none";
   load();
+  loadGedTimeline();
 });
 
 // Optionnel : griser les dates sans données
