@@ -742,8 +742,11 @@ def main():
         )
     )
 
-    # IEHE_KO : personnes non trouvées en IEHE + statut des retries J+1/J+2/J+7
-    # (écrit par 03 puis enrichi par 06_iehe_retry.py)
+    # IEHE_KO : personnes non trouvées en IEHE AU MOMENT DU FLUX.
+    # ⚠️ PHOTO FIGÉE. Depuis la migration du suivi en base, 06_iehe_retry.py ne
+    # réécrit plus ce fichier : la colonne `statut_retry` y vaut donc toujours
+    # "KO" et ne dit RIEN de l'état actuel. Pour savoir si une personne a fini
+    # par apparaître dans IEHE, interroger `rptpsc.suivi_iehe` (`date_found`).
     df_iehe_ko = load_csv_robust(output_dir / f"{prefix}_IEHE_KO.csv")
     run_metrics.append(
         upload_dataframe(

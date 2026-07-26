@@ -75,6 +75,14 @@ import pandas as pd
 # Helpers IEHE_KO partagés (classification multi-sources, lookup historique NS).
 import iehe_ko_lib
 
+# Table de suivi des personnes absentes d'IEHE — source primaire du bloc
+# Retry_IEHE_KO depuis la migration BDD. Import tolérant : sans elle, on retombe
+# sur la lecture des CSV IEHE_KO.
+try:
+    import suivi_iehe_db
+except ImportError:  # pragma: no cover
+    suivi_iehe_db = None
+
 # --- CONFIGURATION ---
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASE_DIR = SCRIPT_DIR if (SCRIPT_DIR / "Input_Data").exists() else SCRIPT_DIR.parent
@@ -3194,20 +3202,55 @@ def main():
     #             schéma enrichi, ou personnes résolues entre-temps et donc
     #             absentes du New_S courant — cf. bug INCONNU rapporté).
     # Logique pure centralisée dans iehe_ko_lib pour permettre les tests.
-    ns_lookup_by_pers = iehe_ko_lib.build_ns_lookup_from_df(df_new_s, col_pers, col_type)
+    #
+    # SOURCE PRIMAIRE : la table rptpsc.suivi_iehe. Elle porte directement
+    # type_assure et eligibilite_tp, écrits par le script 03 au moment du flux :
+    # deux GROUP BY suffisent, plus besoin de la chaîne de fallbacks A/A2/B/C ni
+    # de relire les New_S historiques.
+    # REPLI : lecture des CSV IEHE_KO (base injoignable, ou fichiers antérieurs
+    # à la migration BDD). C'est le seul cas où le code ci-dessous s'exécute.
+    iehe_ko_stats_db = None
+    if suivi_iehe_db is not None:
+        _conn_suivi = suivi_iehe_db.connect_supervision()
+        if _conn_suivi is not None:
+            try:
+                iehe_ko_stats_db = suivi_iehe_db.fetch_stats(_conn_suivi)
+            finally:
+                try:
+                    _conn_suivi.close()
+                except Exception:  # noqa: BLE001
+                    pass
+        if iehe_ko_stats_db:
+            _t = iehe_ko_stats_db["Totaux"]
+            print(f"   📊 Retry IEHE (BDD) : {_t['Resolus_Apres_Retry']}/"
+                  f"{_t['Total_KO_Initial']} résolus ({_t['Encore_KO']} encore KO) "
+                  f"sur {_t['Fichiers_Traites']} flux")
+
+    ko_dfs_a_traiter = [] if iehe_ko_stats_db else dfs.get("IEHE_KO_list", [])
+    if not ko_dfs_a_traiter and iehe_ko_stats_db is None:
+        print("   [INFO] Retry IEHE : ni table de suivi ni fichier IEHE_KO exploitable.")
+
+    ns_lookup_by_pers = (
+        iehe_ko_lib.build_ns_lookup_from_df(df_new_s, col_pers, col_type)
+        if ko_dfs_a_traiter else {}
+    )
 
     # Lookup historique : on parcourt les *_New_S.csv plus anciens et on
     # complète sans écraser (Source C). N'importe quel échec de lecture
     # est loggué mais ne bloque pas la classification.
-    try:
-        ns_historical_lookup = iehe_ko_lib.build_historical_ns_lookup(
-            INPUT_DIR, exclude_prefix=prefix, preprocess_fn=preprocess_new_s)
-        if ns_historical_lookup:
-            print(f"   📚 Lookup NS historique : {len(ns_historical_lookup)} "
-                  f"personne(s) complétée(s) depuis les New_S antérieurs.")
-    except Exception as exc:  # noqa: BLE001
-        print(f"   [WARN] Lookup NS historique indisponible : {exc}")
-        ns_historical_lookup = {}
+    # Lookup coûteux (jusqu'à 30 New_S relus) : inutile quand la table de suivi
+    # a répondu, puisque plus aucun fallback n'est nécessaire.
+    ns_historical_lookup = {}
+    if ko_dfs_a_traiter:
+        try:
+            ns_historical_lookup = iehe_ko_lib.build_historical_ns_lookup(
+                INPUT_DIR, exclude_prefix=prefix, preprocess_fn=preprocess_new_s)
+            if ns_historical_lookup:
+                print(f"   📚 Lookup NS historique : {len(ns_historical_lookup)} "
+                      f"personne(s) complétée(s) depuis les New_S antérieurs.")
+        except Exception as exc:  # noqa: BLE001
+            print(f"   [WARN] Lookup NS historique indisponible : {exc}")
+            ns_historical_lookup = {}
 
     def _empty_bucket() -> Dict[str, int]:
         return {"Total_KO_Initial": 0, "Resolus_Apres_Retry": 0, "Encore_KO": 0}
@@ -3264,7 +3307,7 @@ def main():
         "Hors_Perimetre_TP": _empty_bucket(),
     }
 
-    for df_ko in dfs.get("IEHE_KO_list", []):
+    for df_ko in ko_dfs_a_traiter:
         if "statut_retry" not in df_ko.columns:
             continue
         ko_total = len(df_ko)
@@ -3316,8 +3359,8 @@ def main():
         iehe_ko_totaux["Resolus_Apres_Retry"] += ko_resolved
         iehe_ko_totaux["Encore_KO"] += ko_still
 
-    iehe_ko_stats = None
-    if iehe_ko_details:
+    iehe_ko_stats = iehe_ko_stats_db
+    if iehe_ko_stats is None and iehe_ko_details:
         t = iehe_ko_totaux
         t["Taux_Resolution"] = round(t["Resolus_Apres_Retry"] / t["Total_KO_Initial"] * 100, 2) if t["Total_KO_Initial"] > 0 else 0.0
         t["Fichiers_Traites"] = len(iehe_ko_details)
@@ -3798,7 +3841,7 @@ def main():
                         if "CONJ" in str(k).strip().upper())),
                 },
                 "Ecart_Lignes_vs_Personnes": ecart_lignes_personnes,
-                "Retry_IEHE_KO": iehe_ko_stats if iehe_ko_stats else "Aucun fichier IEHE_KO disponible",
+                "Retry_IEHE_KO": iehe_ko_stats if iehe_ko_stats else "Aucun suivi IEHE disponible (table rptpsc.suivi_iehe vide/injoignable et aucun fichier IEHE_KO)",
             },
 
             # ---- (2) DÉTAIL PAR TYPE D'ASSURÉ + CORRÉLATION TP ----
