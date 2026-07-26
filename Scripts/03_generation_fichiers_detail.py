@@ -59,6 +59,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+# Suivi des personnes absentes d'IEHE en base (rptpsc.suivi_iehe). Import
+# tolérant : si le module ou psycopg manquent, le script continue de produire
+# les CSV comme avant, sans suivi BDD.
+try:
+    import suivi_iehe_db
+except ImportError:  # pragma: no cover
+    suivi_iehe_db = None
+
 
 # -----------------------------
 # CONFIG
@@ -989,8 +997,12 @@ def main() -> None:
         )
 
         # --- Export IEHE_KO (personnes non trouvées en IEHE) ---
-        # Création systématique (même vide) pour garantir une source de vérité
-        # historisable et permettre à 06_iehe_retry.py de toujours trouver un fichier.
+        # PHOTO FIGÉE du flux du jour : plus aucune réécriture par le retry.
+        # L'état vivant (« trouvée depuis ? quand ? ») vit dans rptpsc.suivi_iehe,
+        # alimentée juste après. Les colonnes statut_retry / date_derniere_verif
+        # sont conservées pour compatibilité de lecture des anciens fichiers ;
+        # elles décrivent l'état AU MOMENT DU FLUX et ne bougent plus.
+        # Création systématique (même vide) pour garder un historique complet.
         # Inclut date_adhesion / date_effet_adhesion + éligibilité Carte TP pour
         # permettre la ventilation des KPI Retry IEHE par type d'assuré et par
         # éligibilité TP, sans dépendre du New_S courant.
@@ -1025,6 +1037,43 @@ def main() -> None:
             df_ko["Date éligibilité TP"] = []
             df_ko["Valeur carte TP"] = []
             df_ko["Raison non Eligibilité"] = []
+
+        # --- Suivi BDD : alimentation de rptpsc.suivi_iehe ---
+        # La table porte désormais l'ÉTAT (trouvé / pas encore trouvé) que le
+        # CSV portait avant. Le CSV écrit plus bas devient une photo figée du
+        # flux du jour : 06_iehe_retry.py ne le réécrit plus.
+        # Fait avant le drop/rename ci-dessous, tant que les colonnes de travail
+        # (NS_offre, NS_societe, col_type) sont encore disponibles.
+        if suivi_iehe_db is not None and len(df_ko) > 0:
+            ko_records = []
+            for _, r in df_ko.iterrows():
+                ko_records.append({
+                    "num_personne": r.get(col_pers, ""),
+                    "type_assure": r.get(col_type, "") if col_type else "",
+                    "offre": r.get("NS_offre", ""),
+                    "code_soc": r.get("NS_societe", ""),
+                    "eligibilite_tp": suivi_iehe_db.eligibilite_label(
+                        r.get("Eligibilité TP", ""), r.get("Valeur carte TP", "")
+                    ),
+                    # Raison d'inéligibilité TP, pas raison d'absence IEHE : c'est
+                    # le seul motif exploitable ici et il évite au script 02 de
+                    # devoir reconstruire le périmètre TP.
+                    "motif": r.get("Raison non Eligibilité", ""),
+                })
+            conn_suivi = suivi_iehe_db.connect_supervision()
+            if conn_suivi is not None:
+                try:
+                    if suivi_iehe_db.ensure_table(conn_suivi):
+                        nb = suivi_iehe_db.upsert_ko_rows(conn_suivi, prefix, ko_records)
+                        print(f"   🗄️  Suivi BDD : {nb} personne(s) KO enregistrée(s) "
+                              f"dans {suivi_iehe_db.FQTN} (flux {prefix})")
+                finally:
+                    try:
+                        conn_suivi.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+            else:
+                print("   [WARN] Suivi BDD indisponible : seul le CSV IEHE_KO est produit.")
 
         # Drop colonnes techniques NS_* utilisées uniquement pour le calcul ci-dessus
         df_ko = df_ko.drop(columns=["NS_date_adh", "NS_date_effet", "NS_societe", "NS_offre"], errors="ignore")

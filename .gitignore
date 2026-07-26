@@ -8,8 +8,7 @@ __pycache__/
 
 
 # Output généré
-Output/*
-!Output/.gitkeep
+
 
 
 # Fichiers générés
