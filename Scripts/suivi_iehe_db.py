@@ -29,7 +29,7 @@ le reste du pipeline CSV continue de tourner.
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
@@ -58,35 +58,77 @@ ELIG_ELIGIBLE = "Eligible_TP"
 ELIG_FUTURE = "Future_TP"
 ELIG_HORS = "Hors_Perimetre_TP"
 
-_DDL = f"""
-CREATE TABLE IF NOT EXISTS {FQTN} (
-    flux_id             TEXT NOT NULL,
-    num_personne        TEXT NOT NULL,
-    date_found          DATE,
-    date_derniere_verif DATE,
-    type_assure         TEXT,
-    offre               TEXT,
-    code_soc            TEXT,
-    eligibilite_tp      TEXT,
-    kpep_iehe           TEXT,
-    mail_iehe           TEXT,
-    motif               TEXT,
-    PRIMARY KEY (flux_id, num_personne)
-)
-"""
+def _q(identifier: str) -> str:
+    """Quote un identifiant SQL.
 
-# La PK (flux_id, num_personne) est inutilisable pour les requêtes par personne
+    ⚠️ Obligatoire pour CHAQUE nom de colonne de ce module. PostgreSQL replie
+    tout identifiant non quoté en minuscules et n'accepte ni espace ni accent :
+    écrit tel quel, `NS_num_personne` désignerait `ns_num_personne` et
+    `Eligibilité TP` serait une erreur de syntaxe. Les noms demandés n'existent
+    donc que si toutes les requêtes les quotent — d'où la génération systématique
+    du SQL à partir de `_COLUMNS` plutôt qu'à la main.
+    """
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+# Schéma de la table : 20 colonnes, dans cet ordre. DDL et INSERT en sont TOUS
+# deux dérivés — c'est la seule façon d'empêcher la liste de colonnes, les
+# placeholders et l'ordre des valeurs de se désynchroniser silencieusement.
+# Les noms reproduisent exactement les entêtes du CSV `{prefix}_IEHE_KO.csv`.
+_COLUMNS: Sequence[tuple] = (
+    ("flux_id",                "TEXT NOT NULL"),
+    ("NS_num_personne",        "TEXT NOT NULL"),
+    ("NS_nom_long",            "TEXT"),
+    ("NS_prenom",              "TEXT"),
+    ("NS_type_assure",         "TEXT"),
+    ("NS_date_naissance",      "DATE"),
+    ("NS_valeur_coordonnee",   "TEXT"),
+    ("NS_idkpep",              "TEXT"),
+    ("NS_offre",               "TEXT"),
+    ("NS_date_adhesion",       "DATE"),
+    ("NS_date_effet_adhesion", "DATE"),
+    ("NS_code_soc_appart",     "TEXT"),
+    ("Eligibilité TP",         "TEXT"),
+    ("Date éligibilité TP",    "DATE"),
+    ("Valeur carte TP",        "TEXT"),
+    ("Raison non Eligibilité", "TEXT"),
+    ("date_found",             "DATE"),
+    ("date_derniere_verif",    "DATE"),
+    ("mail_IEHE",              "TEXT"),
+    ("KPEP_IEHE",              "TEXT"),
+)
+
+_DDL = (
+    f"CREATE TABLE IF NOT EXISTS {FQTN} (\n    "
+    + ",\n    ".join(f"{_q(name):<26} {sqltype}" for name, sqltype in _COLUMNS)
+    + f",\n    PRIMARY KEY ({_q('flux_id')}, {_q('NS_num_personne')})\n)"
+)
+
+# La PK (flux_id, NS_num_personne) est inutilisable pour les requêtes par personne
 # sans flux_id — or c'est exactement ce que fait le retry (une personne trouvée
 # solde ses lignes de TOUS les flux). D'où l'index dédié.
 _DDL_IDX = (
     f"CREATE INDEX IF NOT EXISTS idx_{SUIVI_TABLE}_personne "
-    f"ON {FQTN} (num_personne)"
+    f"ON {FQTN} ({_q('NS_num_personne')})"
 )
 # Index partiel : le scan des KO en attente ne lit que cette fraction de table.
 _DDL_IDX_PENDING = (
     f"CREATE INDEX IF NOT EXISTS idx_{SUIVI_TABLE}_pending "
-    f"ON {FQTN} (num_personne) WHERE date_found IS NULL"
+    f"ON {FQTN} ({_q('NS_num_personne')}) WHERE {_q('date_found')} IS NULL"
 )
+
+# Réplique SQL de `eligibilite_label()`. La table ne stocke que le couple brut
+# ("O"/"N" + "Futur") demandé : le libellé attendu par le script 02 est dérivé à
+# la lecture, sans colonne supplémentaire. LEFT() plutôt que LIKE 'FUTUR%' pour
+# éviter un '%' dans une requête que psycopg pourrait un jour interpoler.
+_ELIG_LABEL_SQL = f"""
+        CASE
+            WHEN UPPER(TRIM(COALESCE({_q('Eligibilité TP')}, ''))) <> 'O'
+                THEN '{ELIG_HORS}'
+            WHEN LEFT(UPPER(TRIM(COALESCE({_q('Valeur carte TP')}, ''))), 5) = 'FUTUR'
+                THEN '{ELIG_FUTURE}'
+            ELSE '{ELIG_ELIGIBLE}'
+        END"""
 
 
 # =============================================================================
@@ -110,7 +152,13 @@ def connect_supervision():
 
 
 def ensure_table(conn) -> bool:
-    """Crée table + index s'ils n'existent pas. Retourne `False` si échec."""
+    """Crée table + index s'ils n'existent pas. Retourne `False` si échec.
+
+    ⚠️ `CREATE TABLE IF NOT EXISTS` ne migre RIEN : si une table `suivi_iehe`
+    subsiste avec un schéma antérieur, le DDL est un no-op silencieux et tous les
+    INSERT échoueront ensuite sur des colonnes absentes. Un changement de
+    `_COLUMNS` impose donc un `DROP TABLE {FQTN}` manuel préalable.
+    """
     if conn is None:
         return False
     try:
@@ -140,6 +188,9 @@ def eligibilite_label(eligibilite_o_n: str, valeur_carte_tp: str) -> str:
       - "N"                  → Hors_Perimetre_TP
       - "O" + valeur "Futur" → Future_TP
       - "O" + valeur vide    → Eligible_TP
+
+    Jumeau Python de `_ELIG_LABEL_SQL`, qui applique la même règle côté base
+    pour `fetch_stats()` : toute modification ici doit être reportée là-bas.
     """
     elig = (eligibilite_o_n or "").strip().upper()
     valeur = (valeur_carte_tp or "").strip().upper()
@@ -148,57 +199,132 @@ def eligibilite_label(eligibilite_o_n: str, valeur_carte_tp: str) -> str:
     return ELIG_FUTURE if valeur.startswith("FUTUR") else ELIG_ELIGIBLE
 
 
+def _clean_text(value: Any) -> Optional[str]:
+    """Texte prêt pour la base. Vide / NaN / NaT → None.
+
+    ⚠️ `value or ""` ne suffit pas : `bool(float('nan'))` vaut True, donc un
+    trou laissé par une jointure pandas passerait la chaîne littérale 'nan'.
+    Sur une colonne DATE, cela fait échouer le lot entier.
+    """
+    if value is None:
+        return None
+    try:
+        if value != value:  # NaN et NaT sont les seuls à ne pas s'égaler
+            return None
+    except Exception:  # noqa: BLE001 - comparateur exotique : on retombe sur str()
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in ("nan", "nat", "none", "null"):
+        return None
+    return text
+
+
+# Ordre significatif : le format ISO d'abord, puis le format français produit par
+# `compute_carte_tp_row()` ("%d/%m/%Y"), puis le format des préfixes de flux.
+_DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d%m%Y")
+
+
+def _clean_date(value: Any) -> Optional[date]:
+    """Convertit en `datetime.date` réel. Valeur illisible → None.
+
+    On ne laisse JAMAIS PostgreSQL parser la chaîne lui-même : avec le DateStyle
+    par défaut (`ISO, MDY`), '07/05/2026' devient le 5 juillet au lieu du 7 mai,
+    et '25/12/2026' lève `date/time field value out of range` qui fait échouer
+    tout l'`executemany`. Passer un objet `date` supprime toute ambiguïté.
+    """
+    if isinstance(value, datetime):  # couvre pandas.Timestamp
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = _clean_text(value)
+    if text is None:
+        return None
+    text = text.split(" ")[0].split("T")[0]  # '2026-04-16 00:00:00' → '2026-04-16'
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+# Spécification UNIQUE de l'upsert : (colonne, coercion, rafraîchie sur conflit).
+# La colonne sert aussi de clé dans les dicts `rows` — les enregistrements produits
+# par le script 03 portent déjà les entêtes du CSV. Le SQL et le payload sont
+# générés depuis ce tuple, donc la N-ième valeur envoyée vise toujours la N-ième
+# colonne nommée.
+#
+# `refresh=False` sur les colonnes de retry : un rejeu du script 03 sur un flux
+# déjà chargé ne doit pas effacer ce que les retries ont trouvé (`date_found`,
+# `mail_IEHE`, `KPEP_IEHE`, `date_derniere_verif`).
+_UPSERT_SPEC: Sequence[tuple] = (
+    ("NS_num_personne",        _clean_text, False),
+    ("NS_nom_long",            _clean_text, True),
+    ("NS_prenom",              _clean_text, True),
+    ("NS_type_assure",         _clean_text, True),
+    ("NS_date_naissance",      _clean_date, True),
+    ("NS_valeur_coordonnee",   _clean_text, True),
+    ("NS_idkpep",              _clean_text, True),
+    ("NS_offre",               _clean_text, True),
+    ("NS_date_adhesion",       _clean_date, True),
+    ("NS_date_effet_adhesion", _clean_date, True),
+    ("NS_code_soc_appart",     _clean_text, True),
+    ("Eligibilité TP",         _clean_text, True),
+    ("Date éligibilité TP",    _clean_date, True),
+    ("Valeur carte TP",        _clean_text, True),
+    ("Raison non Eligibilité", _clean_text, True),
+    ("date_found",             _clean_date, False),
+    ("date_derniere_verif",    _clean_date, False),
+    ("mail_IEHE",              _clean_text, False),
+    ("KPEP_IEHE",              _clean_text, False),
+)
+
+_UPSERT_SQL = f"""
+    INSERT INTO {FQTN} ({_q('flux_id')}, {", ".join(_q(c) for c, _, _ in _UPSERT_SPEC)})
+    VALUES ({", ".join(["%s"] * (1 + len(_UPSERT_SPEC)))})
+    ON CONFLICT ({_q('flux_id')}, {_q('NS_num_personne')}) DO UPDATE SET
+        {", ".join(f"{_q(c)} = EXCLUDED.{_q(c)}" for c, _, upd in _UPSERT_SPEC if upd)}
+"""
+
+
 def upsert_ko_rows(conn, flux_id: str, rows: Sequence[Dict[str, Any]]) -> int:
     """Insère les personnes absentes d'IEHE pour ce flux.
 
-    `rows` : dicts portant `num_personne` (obligatoire) et, optionnellement,
-    `type_assure`, `offre`, `code_soc`, `eligibilite_tp`, `motif`.
+    `rows` : dicts portant `NS_num_personne` (obligatoire) et, optionnellement,
+    les autres clés listées dans `_UPSERT_SPEC`.
 
-    ⚠️ En cas de conflit (re-run du script 03 sur le même préfixe), on rafraîchit
-    UNIQUEMENT les colonnes d'enrichissement. `date_found`, `date_derniere_verif`,
-    `kpep_iehe` et `mail_iehe` ne sont jamais réécrites : sinon un rejeu du 03
-    effacerait le résultat des retries déjà effectués.
+    En cas de conflit (re-run du script 03 sur le même flux), on rafraîchit
+    uniquement les colonnes d'enrichissement. Les colonnes liées aux retries
+    et aux résultats IEHE ne sont pas écrasées.
 
     Retourne le nombre de lignes envoyées (0 si indisponible).
     """
     if conn is None or not rows or not flux_id:
         return 0
 
-    payload = []
+    payload: List[tuple] = []
     seen = set()
+    flux = str(flux_id).strip()
+
     for r in rows:
-        pid = str(r.get("num_personne", "") or "").strip()
-        if not pid or pid in seen:
+        pid = _clean_text(r.get("NS_num_personne"))
+        if pid is None or pid in seen:
             continue
         seen.add(pid)
-        payload.append((
-            str(flux_id).strip(),
-            pid,
-            (str(r.get("type_assure", "") or "").strip() or None),
-            (str(r.get("offre", "") or "").strip() or None),
-            (str(r.get("code_soc", "") or "").strip() or None),
-            (str(r.get("eligibilite_tp", "") or "").strip() or None),
-            (str(r.get("motif", "") or "").strip() or None),
-        ))
+        payload.append(
+            (flux,) + tuple(coerce(r.get(col)) for col, coerce, _ in _UPSERT_SPEC)
+        )
 
     if not payload:
+        # Silence = piège : sans ce message, un mapping de colonnes erroné côté
+        # script 03 ressemble à un flux sans aucun KO.
+        print(f"   [WARN] suivi_iehe : flux {flux_id} — {len(rows)} ligne(s) reçue(s) "
+              f"mais aucune clé 'NS_num_personne' exploitable, rien n'est inséré.")
         return 0
 
-    sql = f"""
-        INSERT INTO {FQTN}
-            (flux_id, num_personne, type_assure, offre, code_soc,
-             eligibilite_tp, motif, date_found, date_derniere_verif)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, NULL)
-        ON CONFLICT (flux_id, num_personne) DO UPDATE SET
-            type_assure    = EXCLUDED.type_assure,
-            offre          = EXCLUDED.offre,
-            code_soc       = EXCLUDED.code_soc,
-            eligibilite_tp = EXCLUDED.eligibilite_tp,
-            motif          = EXCLUDED.motif
-    """
     try:
         with conn.cursor() as cur:
-            cur.executemany(sql, payload)
+            cur.executemany(_UPSERT_SQL, payload)
         conn.commit()
         return len(payload)
     except Exception as exc:  # noqa: BLE001
@@ -209,7 +335,6 @@ def upsert_ko_rows(conn, flux_id: str, rows: Sequence[Dict[str, Any]]) -> int:
         except Exception:  # noqa: BLE001
             pass
         return 0
-
 
 # =============================================================================
 # LECTURE / MISE À JOUR — script 06 (retry)
@@ -224,11 +349,11 @@ def fetch_pending(conn, flux_id: Optional[str] = None) -> List[str]:
     """
     if conn is None:
         return []
-    sql = (f"SELECT DISTINCT num_personne FROM {FQTN} "
-           f"WHERE date_found IS NULL AND num_personne <> ''")
+    sql = (f"SELECT DISTINCT {_q('NS_num_personne')} FROM {FQTN} "
+           f"WHERE {_q('date_found')} IS NULL AND {_q('NS_num_personne')} <> ''")
     params: tuple = ()
     if flux_id:
-        sql += " AND flux_id = %s"
+        sql += f" AND {_q('flux_id')} = %s"
         params = (str(flux_id).strip(),)
     try:
         with conn.cursor() as cur:
@@ -246,8 +371,9 @@ def fetch_pending_by_flux(conn) -> Dict[str, int]:
     try:
         with conn.cursor() as cur:
             cur.execute(
-                f"SELECT flux_id, COUNT(*) FROM {FQTN} "
-                f"WHERE date_found IS NULL GROUP BY flux_id ORDER BY flux_id"
+                f"SELECT {_q('flux_id')}, COUNT(*) FROM {FQTN} "
+                f"WHERE {_q('date_found')} IS NULL "
+                f"GROUP BY {_q('flux_id')} ORDER BY {_q('flux_id')}"
             )
             return {str(r[0]): int(r[1]) for r in cur.fetchall()}
     except Exception as exc:  # noqa: BLE001
@@ -288,12 +414,12 @@ def mark_found(conn, found: Dict[str, Dict[str, str]], day: Optional[date] = Non
 
     sql = f"""
         UPDATE {FQTN}
-           SET date_found          = %s,
-               date_derniere_verif = %s,
-               mail_iehe           = COALESCE(NULLIF(%s, ''), mail_iehe),
-               kpep_iehe           = COALESCE(NULLIF(%s, ''), kpep_iehe)
-         WHERE num_personne = %s
-           AND date_found IS NULL
+           SET {_q('date_found')}          = %s,
+               {_q('date_derniere_verif')} = %s,
+               {_q('mail_IEHE')} = COALESCE(NULLIF(%s, ''), {_q('mail_IEHE')}),
+               {_q('KPEP_IEHE')} = COALESCE(NULLIF(%s, ''), {_q('KPEP_IEHE')})
+         WHERE {_q('NS_num_personne')} = %s
+           AND {_q('date_found')} IS NULL
     """
     try:
         with conn.cursor() as cur:
@@ -324,7 +450,8 @@ def mark_checked(conn, day: Optional[date] = None) -> int:
     try:
         with conn.cursor() as cur:
             cur.execute(
-                f"UPDATE {FQTN} SET date_derniere_verif = %s WHERE date_found IS NULL",
+                f"UPDATE {FQTN} SET {_q('date_derniere_verif')} = %s "
+                f"WHERE {_q('date_found')} IS NULL",
                 (day,),
             )
             updated = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
@@ -367,28 +494,30 @@ def fetch_stats(conn) -> Optional[Dict[str, Any]]:
     try:
         with conn.cursor() as cur:
             cur.execute(f"""
-                SELECT flux_id,
+                SELECT {_q('flux_id')},
                        COUNT(*),
-                       COUNT(*) FILTER (WHERE date_found IS NOT NULL),
-                       MAX(date_derniere_verif)
+                       COUNT(*) FILTER (WHERE {_q('date_found')} IS NOT NULL),
+                       MAX({_q('date_derniere_verif')})
                   FROM {FQTN}
-                 GROUP BY flux_id
+                 GROUP BY {_q('flux_id')}
             """)
             rows_flux = cur.fetchall()
 
             cur.execute(f"""
-                SELECT COALESCE(NULLIF(TRIM(type_assure), ''), 'INCONNU'),
+                SELECT COALESCE(NULLIF(TRIM({_q('NS_type_assure')}), ''), 'INCONNU'),
                        COUNT(*),
-                       COUNT(*) FILTER (WHERE date_found IS NOT NULL)
+                       COUNT(*) FILTER (WHERE {_q('date_found')} IS NOT NULL)
                   FROM {FQTN}
                  GROUP BY 1
             """)
             rows_type = cur.fetchall()
 
+            # Le libellé d'éligibilité n'est pas stocké : il est recalculé ici
+            # depuis le couple brut, cf. `_ELIG_LABEL_SQL`.
             cur.execute(f"""
-                SELECT COALESCE(NULLIF(TRIM(eligibilite_tp), ''), '{ELIG_HORS}'),
+                SELECT {_ELIG_LABEL_SQL},
                        COUNT(*),
-                       COUNT(*) FILTER (WHERE date_found IS NOT NULL)
+                       COUNT(*) FILTER (WHERE {_q('date_found')} IS NOT NULL)
                   FROM {FQTN}
                  GROUP BY 1
             """)

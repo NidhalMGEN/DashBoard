@@ -741,7 +741,6 @@ def main() -> None:
     col_type = get_col_flexible(df_ns, ["type_assure", "typeassure"])
     col_pers = get_col_flexible(df_ns, ["num_personne", "numpersonne", "num_pers", "id_personne"])
     col_ctr = get_col_flexible(df_ns, ["num_ctr_indiv", "contrat"])
-
     if not col_type or not col_pers:
         print("❌ Colonnes requises manquantes dans New_S (type_assure / num_personne).")
         return
@@ -1038,28 +1037,38 @@ def main() -> None:
             df_ko["Valeur carte TP"] = []
             df_ko["Raison non Eligibilité"] = []
 
+        # Drop colonnes techniques NS_* utilisées uniquement pour le calcul ci-dessus
+        df_ko = df_ko.drop(columns=["NS_date_adh", "NS_date_effet", "NS_societe", "NS_offre"], errors="ignore")
+        df_ko = df_ko.rename(columns={c: f"NS_{c}" for c in ko_src_cols})
+
         # --- Suivi BDD : alimentation de rptpsc.suivi_iehe ---
         # La table porte désormais l'ÉTAT (trouvé / pas encore trouvé) que le
         # CSV portait avant. Le CSV écrit plus bas devient une photo figée du
         # flux du jour : 06_iehe_retry.py ne le réécrit plus.
-        # Fait avant le drop/rename ci-dessous, tant que les colonnes de travail
-        # (NS_offre, NS_societe, col_type) sont encore disponibles.
+        # ⚠️ APRÈS le rename : les enregistrements ci-dessous lisent les noms
+        # finaux (NS_num_personne...). Avant le rename les colonnes s'appellent
+        # encore num_personne / nom_long et chaque lecture renverrait vide —
+        # l'upsert n'enverrait alors aucune ligne, sans erreur visible.
         if suivi_iehe_db is not None and len(df_ko) > 0:
-            ko_records = []
-            for _, r in df_ko.iterrows():
-                ko_records.append({
-                    "num_personne": r.get(col_pers, ""),
-                    "type_assure": r.get(col_type, "") if col_type else "",
-                    "offre": r.get("NS_offre", ""),
-                    "code_soc": r.get("NS_societe", ""),
-                    "eligibilite_tp": suivi_iehe_db.eligibilite_label(
-                        r.get("Eligibilité TP", ""), r.get("Valeur carte TP", "")
-                    ),
-                    # Raison d'inéligibilité TP, pas raison d'absence IEHE : c'est
-                    # le seul motif exploitable ici et il évite au script 02 de
-                    # devoir reconstruire le périmètre TP.
-                    "motif": r.get("Raison non Eligibilité", ""),
-                })
+            try:
+                flux_date = datetime.strptime(prefix, "%d%m%Y").date()
+            except ValueError:
+                flux_date = date.today()
+
+            # to_dict("records") plutôt qu'iterrows() : pas de Series intermédiaire
+            # par ligne, et les clés portent déjà les noms des colonnes de la table.
+            # date_found reste NULL : c'est lui, et non statut_retry, qui marque
+            # une personne comme encore en attente pour 06_iehe_retry.py.
+            ko_records = [
+                {
+                    **rec,
+                    "date_found": None,
+                    "date_derniere_verif": flux_date,
+                    "mail_IEHE": "",
+                    "KPEP_IEHE": "",
+                }
+                for rec in df_ko.to_dict("records")
+            ]
             conn_suivi = suivi_iehe_db.connect_supervision()
             if conn_suivi is not None:
                 try:
@@ -1075,13 +1084,17 @@ def main() -> None:
             else:
                 print("   [WARN] Suivi BDD indisponible : seul le CSV IEHE_KO est produit.")
 
-        # Drop colonnes techniques NS_* utilisées uniquement pour le calcul ci-dessus
-        df_ko = df_ko.drop(columns=["NS_date_adh", "NS_date_effet", "NS_societe", "NS_offre"], errors="ignore")
-        df_ko = df_ko.rename(columns={c: f"NS_{c}" for c in ko_src_cols})
+        # Colonnes de compatibilité du CSV — état AU MOMENT DU FLUX, jamais réécrit.
+        # Elles restent obligatoires : 02_calcul_kpi.py ignore purement et simplement
+        # un fichier KO sans `statut_retry` quand il retombe sur la lecture des CSV,
+        # et 04_chargement_bdd.py charge le fichier tel quel dans output_iehe_ko.
+        # `date_derniere_verif` garde le format DDMMYYYY du préfixe (celui que le
+        # script 02 réexpose dans Date_Derniere_Verification).
         df_ko["statut_retry"] = "KO"
         df_ko["date_derniere_verif"] = prefix
         df_ko["mail_IEHE"] = ""
         df_ko["KPEP_IEHE"] = ""
+
         ko_path = OUTPUT_DIR / f"{prefix}_IEHE_KO.csv"
         df_ko.to_csv(ko_path, index=False, sep=output_sep, encoding="utf-8-sig")
         if len(df_ko) == 0:
