@@ -214,12 +214,12 @@
       <h2>Dashboard supervision</h2>
       <div class="spacer"></div>
       <div class="notif-wrap">
-        <div class="alert-bell" id="alert-bell" title="Notifications" style="display: flex;" onclick="toggleNotif()">
-          🔔 <span class="alert-count" id="alert-count">1</span>
+        <div class="alert-bell warn" id="alert-bell" title="Notifications" style="display: flex;" onclick="toggleNotif()">
+          🔔 <span class="alert-count" id="alert-count">3</span>
         </div>
         <div class="notif-panel" id="notif-panel">
           <div class="notif-head">Notifications</div>
-          <div id="notif-list"><div class="notif-item err"><div class="t">Présence IEHE critique</div>93.57% sous le seuil bas</div></div>
+          <div id="notif-list"><div class="notif-item warn"><div class="t">Matching CIAM à surveiller</div>98.82% sous le seuil cible</div><div class="notif-item warn"><div class="t">Présence IEHE à surveiller</div>99.76% sous le seuil cible</div><div class="notif-item warn"><div class="t">Non-rapprochés CIAM</div>19 personne(s) non rapprochée(s)</div></div>
           <a class="notif-foot" href="http://127.0.0.1:5000/dashboard/">Voir le dashboard →</a>
         </div>
       </div>
@@ -228,8 +228,8 @@
 
   <!-- DATE PICKER -->
   <input type="date" id="date-picker" style="background:var(--bg-input);border:1px solid var(--border-active);
-                color:var(--text);border-radius:8px;padding:2px 5px;font-size:13px;cursor:pointer" min="2026-04-28" max="2026-07-14">
-  <button class="btn" id="btn-date-reset" style="display:none">↩ Dernier run</button>
+                color:var(--text);border-radius:8px;padding:2px 5px;font-size:13px;cursor:pointer" min="2026-04-28" max="2026-07-23">
+  <button class="btn" id="btn-date-reset" style="display: inline-flex;">↩ Dernier run</button>
 
   <button class="btn" id="btn-refresh">🔄 Rafraîchir</button>
 
@@ -242,16 +242,16 @@
       
   <div id="degraded" class="alert alert-err" style="display:none"></div>
 
-  <div class="meta-row" id="meta-row"><span>📦 <b>30</b> flux en base</span><span>🕒 Dernier run : <b>14/07/2026 12:54:10</b></span><span>⏱ Fraîcheur : <b>22.4 h</b></span></div>
+  <div class="meta-row" id="meta-row"><span style="color:var(--mgen-green);font-weight:700">📅 KPI du 12/07/2026</span><span>📦 <b>30</b> flux en base</span><span>🕒 Dernier run : <b>14/07/2026 12:54:10</b></span><span>⏱ Fraîcheur : <b>219.2 h</b></span></div>
 
-  <div id="flags"><div class="alert alert-warn">🚩 TP GED à 0.0% — taux très bas, à valider métier (règle de rapprochement GED en cours de qualification). <a href="http://127.0.0.1:5000/dashboard/#" style="text-decoration:underline">[règle métier]</a></div></div>
+  <div id="flags"><div class="alert alert-warn">🚩 TP GED à 0.0% — taux très bas, à valider métier. <a href="http://127.0.0.1:5000/dashboard/#" style="text-decoration:underline">[règle métier]</a></div></div>
 
   <div class="chart-card" style="margin-bottom:18px">
     <div style="display:flex;align-items:center;margin-bottom:6px">
       <div class="section-title" style="margin:0">Alertes actives</div>
-      <span id="alerts-count" style="margin-left:auto;font-size:12px;color:var(--text-dim)">1 alerte(s)</span>
+      <span id="alerts-count" style="margin-left:auto;font-size:12px;color:var(--text-dim)">3 alerte(s)</span>
     </div>
-    <div id="alerts-list"><div class="alert alert-err"><b>Présence IEHE critique</b> — 93.57% sous le seuil bas</div></div>
+    <div id="alerts-list"><div class="alert alert-warn"><b>Matching CIAM à surveiller</b> — 98.82% sous le seuil cible</div><div class="alert alert-warn"><b>Présence IEHE à surveiller</b> — 99.76% sous le seuil cible</div><div class="alert alert-warn"><b>Non-rapprochés CIAM</b> — 19 personne(s) non rapprochée(s)</div></div>
   </div>
 
   <div class="chart-card" style="margin-bottom:18px">
@@ -309,25 +309,25 @@
       <span class="dot neutral"></span>
       <div class="lbl">Volume du flux </div>
       <div class="val">140 <span class="u">lignes</span></div>
-      <div class="dlt down">▼ -1 017 vs flux préc.</div>
+      <div class="dlt up">▲ +11 vs flux préc.</div>
     </div>
     <div class="kpi-card neutral ">
       <span class="dot neutral"></span>
       <div class="lbl">Personnes uniques </div>
       <div class="val">140 <span class="u">pers.</span></div>
-      <div class="dlt down">▼ -1 005 vs flux préc.</div>
+      <div class="dlt up">▲ +11 vs flux préc.</div>
     </div>
     <div class="kpi-card green drillable" data-key="taux_matching_ciam" data-label="Matching CIAM" title="Cliquer pour le détail">
       <span class="dot green"></span>
       <div class="lbl">Matching CIAM <span class="drill-ico">🔍</span></div>
       <div class="val">100.00 % <span class="u">%</span></div>
-      <div class="dlt up">▲ +1.59% vs flux préc.</div>
+      
     </div>
     <div class="kpi-card neutral drillable" data-key="non_rapproches" data-label="Non-rapprochés CIAM" title="Cliquer pour le détail">
       <span class="dot neutral"></span>
       <div class="lbl">Non-rapprochés CIAM <span class="drill-ico">🔍</span></div>
       <div class="val">0 <span class="u">pers.</span></div>
-      <div class="dlt down">▼ -17 vs flux préc.</div>
+      
     </div>
     <div class="kpi-card na drillable" data-key="score_qualite" data-label="Qualité données" title="Cliquer pour le détail">
       <span class="dot na"></span>
@@ -339,25 +339,25 @@
       <span class="dot red"></span>
       <div class="lbl">Présence IEHE </div>
       <div class="val">93.57 % <span class="u">%</span></div>
-      <div class="dlt down">▼ -3.11% vs flux préc.</div>
+      <div class="dlt up">▲ +2.10% vs flux préc.</div>
     </div>
     <div class="kpi-card neutral drillable" data-key="manquants_iehe" data-label="Manquants IEHE" title="Cliquer pour le détail">
       <span class="dot neutral"></span>
       <div class="lbl">Manquants IEHE <span class="drill-ico">🔍</span></div>
       <div class="val">9 <span class="u">pers.</span></div>
-      <div class="dlt down">▼ -29 vs flux préc.</div>
+      <div class="dlt down">▼ -2 vs flux préc.</div>
     </div>
     <div class="kpi-card green drillable" data-key="taux_eligibilite_tp" data-label="Éligibilité TP" title="Cliquer pour le détail">
       <span class="dot green"></span>
       <div class="lbl">Éligibilité TP <span class="drill-ico">🔍</span></div>
       <div class="val">62.24 % <span class="u">%</span></div>
-      <div class="dlt down">▼ -20.57% vs flux préc.</div>
+      <div class="dlt up">▲ +13.43% vs flux préc.</div>
     </div>
     <div class="kpi-card neutral drillable" data-key="eligibles_tp" data-label="Éligibles TP" title="Cliquer pour le détail">
       <span class="dot neutral"></span>
       <div class="lbl">Éligibles TP <span class="drill-ico">🔍</span></div>
       <div class="val">61 <span class="u">pers.</span></div>
-      <div class="dlt down">▼ -464 vs flux préc.</div>
+      <div class="dlt up">▲ +20 vs flux préc.</div>
     </div>
     <div class="kpi-card red drillable" data-key="taux_ged" data-label="Rapprochement TP GED" title="Cliquer pour le détail">
       <span class="dot red"></span>
@@ -370,8 +370,8 @@
     <span style="font-size:12px;color:var(--text-muted)">Période :</span>
     <button class="pbtn" data-days="7">7 j</button>
     <button class="pbtn" data-days="14">14 j</button>
-    <button class="pbtn active" data-days="30">30 j</button>
-    <button class="pbtn" data-days="90">90 j</button>
+    <button class="pbtn" data-days="30">30 j</button>
+    <button class="pbtn active" data-days="90">90 j</button>
   </div>
 
   <div class="chart-row-2">
@@ -379,7 +379,7 @@
       <div class="section-title">Tendances — taux clés (%)</div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
         Axe gauche 0–100 % · <span style="color:#06b6d4">TP GED</span> sur axe droit dédié</div>
-      <canvas id="chart-rates" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+      <canvas id="chart-rates" height="378" style="box-sizing: border-box; display: block; height: 378.8px; width: 757.5px;" width="757"></canvas>
     </div>
     <div class="chart-card">
       <div style="display:flex;align-items:center;margin-bottom:6px">
@@ -388,20 +388,20 @@
       </div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
         <span style="color:#ef4444">Non-rapprochés</span> sur axe droit dédié</div>
-      <canvas id="chart-vols" height="378" width="757" style="display: block; box-sizing: border-box; height: 378.8px; width: 757.5px;"></canvas>
+      <canvas id="chart-vols" height="378" style="box-sizing: border-box; display: block; height: 378.8px; width: 757.5px;" width="757"></canvas>
     </div>
   </div>
 
   <div class="chart-row-2">
     <div class="chart-card">
       <div class="section-title">Répartition TP GED (dernier flux)</div>
-      <canvas id="chart-donut" height="757" width="757" style="display: block; box-sizing: border-box; height: 757.5px; width: 757.5px;"></canvas>
+      <canvas id="chart-donut" height="757" style="box-sizing: border-box; display: block; height: 757.5px; width: 757.5px;" width="757"></canvas>
       <div style="text-align:center;font-size:11px;color:var(--warning);margin-top:8px">
         ⚠ Taux de rapprochement faible — validation métier requise</div>
     </div>
     <div class="chart-card">
       <div class="section-title">Radar multi-KPI — jour vs moyenne période</div>
-      <canvas id="chart-radar" height="757" width="757" style="display: block; box-sizing: border-box; height: 757.5px; width: 757.5px;"></canvas>
+      <canvas id="chart-radar" height="757" style="box-sizing: border-box; display: block; height: 757.5px; width: 757.5px;" width="757"></canvas>
     </div>
   </div>
 
@@ -427,12 +427,29 @@
   </div>
 
   <div class="chart-card">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px">
+      <div class="section-title" style="margin:0" id="ged-title">Résorption TP GED — OK / KO par jour ouvré — flux du 12/07/2026</div>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:flex-end">
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Fenêtre</div>
+          <select id="ged-days">
+            <option value="10">10 j ouvrés</option>
+            <option value="20">20 j ouvrés</option>
+            <option value="30" selected="">30 j ouvrés</option>
+            <option value="60">60 j ouvrés</option>
+          </select></div>
+      </div>
+    </div>
+    <canvas id="chart-ged-timeline" height="577" style="box-sizing: border-box; display: block; height: 577.5px; width: 1575px;" width="1575"></canvas>
+    <div id="ged-timeline-msg" style="font-size:12px;color:var(--text-dim);margin-top:8px"></div>
+  </div>
+
+  <div class="chart-card">
     <div class="section-title">Comparaison de flux</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
       <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux A (référence)</div>
-        <select id="cmp-a" style="min-width:200px"><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="16042026">Flux 16042026 — 27/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="19052026">Flux 19052026 — 20/05/2026</option><option value="18052026">Flux 18052026 — 19/05/2026</option><option value="17052026">Flux 17052026 — 19/05/2026</option><option value="16052026">Flux 16052026 — 19/05/2026</option><option value="15052026">Flux 15052026 — 16/05/2026</option><option value="14052026">Flux 14052026 — 16/05/2026</option><option value="13052026">Flux 13052026 — 14/05/2026</option><option value="08052026">Flux 08052026 — 13/05/2026</option></select></div>
+        <select id="cmp-a" style="min-width:200px"><option value="22072026">Flux 22072026 — 23/07/2026</option><option value="21072026">Flux 21072026 — 22/07/2026</option><option value="20072026">Flux 20072026 — 21/07/2026</option><option value="19072026">Flux 19072026 — 21/07/2026</option><option value="18072026">Flux 18072026 — 21/07/2026</option><option value="17072026">Flux 17072026 — 18/07/2026</option><option value="16072026">Flux 16072026 — 17/07/2026</option><option value="15072026">Flux 15072026 — 16/07/2026</option><option value="14072026">Flux 14072026 — 16/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option></select></div>
       <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Flux B (comparé)</div>
-        <select id="cmp-b" style="min-width:200px"><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="16042026">Flux 16042026 — 27/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="19052026">Flux 19052026 — 20/05/2026</option><option value="18052026">Flux 18052026 — 19/05/2026</option><option value="17052026">Flux 17052026 — 19/05/2026</option><option value="16052026">Flux 16052026 — 19/05/2026</option><option value="15052026">Flux 15052026 — 16/05/2026</option><option value="14052026">Flux 14052026 — 16/05/2026</option><option value="13052026">Flux 13052026 — 14/05/2026</option><option value="08052026">Flux 08052026 — 13/05/2026</option></select></div>
+        <select id="cmp-b" style="min-width:200px"><option value="22072026">Flux 22072026 — 23/07/2026</option><option value="21072026">Flux 21072026 — 22/07/2026</option><option value="20072026">Flux 20072026 — 21/07/2026</option><option value="19072026">Flux 19072026 — 21/07/2026</option><option value="18072026">Flux 18072026 — 21/07/2026</option><option value="17072026">Flux 17072026 — 18/07/2026</option><option value="16072026">Flux 16072026 — 17/07/2026</option><option value="15072026">Flux 15072026 — 16/07/2026</option><option value="14072026">Flux 14072026 — 16/07/2026</option><option value="13072026">Flux 13072026 — 14/07/2026</option><option value="12072026">Flux 12072026 — 14/07/2026</option><option value="11072026">Flux 11072026 — 14/07/2026</option><option value="10072026">Flux 10072026 — 13/07/2026</option><option value="09072026">Flux 09072026 — 10/07/2026</option><option value="08072026">Flux 08072026 — 09/07/2026</option><option value="07072026">Flux 07072026 — 08/07/2026</option><option value="06072026">Flux 06072026 — 07/07/2026</option><option value="05072026">Flux 05072026 — 07/07/2026</option><option value="04072026">Flux 04072026 — 07/07/2026</option><option value="03072026">Flux 03072026 — 04/07/2026</option><option value="02072026">Flux 02072026 — 03/07/2026</option><option value="01072026">Flux 01072026 — 02/07/2026</option><option value="30062026">Flux 30062026 — 01/07/2026</option><option value="29062026">Flux 29062026 — 30/06/2026</option><option value="28062026">Flux 28062026 — 02/07/2026</option><option value="27062026">Flux 27062026 — 30/06/2026</option><option value="26062026">Flux 26062026 — 29/06/2026</option><option value="25062026">Flux 25062026 — 26/06/2026</option><option value="24062026">Flux 24062026 — 25/06/2026</option><option value="23062026">Flux 23062026 — 24/06/2026</option><option value="22062026">Flux 22062026 — 23/06/2026</option><option value="21062026">Flux 21062026 — 23/06/2026</option><option value="19062026">Flux 19062026 — 20/06/2026</option><option value="18062026">Flux 18062026 — 19/06/2026</option><option value="17062026">Flux 17062026 — 18/06/2026</option><option value="16062026">Flux 16062026 — 17/06/2026</option><option value="15062026">Flux 15062026 — 16/06/2026</option><option value="14062026">Flux 14062026 — 16/06/2026</option><option value="13062026">Flux 13062026 — 16/06/2026</option><option value="12062026">Flux 12062026 — 13/06/2026</option><option value="11062026">Flux 11062026 — 12/06/2026</option><option value="10062026">Flux 10062026 — 11/06/2026</option><option value="09062026">Flux 09062026 — 10/06/2026</option><option value="08062026">Flux 08062026 — 09/06/2026</option><option value="07062026">Flux 07062026 — 09/06/2026</option><option value="06062026">Flux 06062026 — 09/06/2026</option><option value="05062026">Flux 05062026 — 06/06/2026</option><option value="04062026">Flux 04062026 — 05/06/2026</option><option value="03062026">Flux 03062026 — 04/06/2026</option><option value="02062026">Flux 02062026 — 03/06/2026</option><option value="01062026">Flux 01062026 — 02/06/2026</option><option value="31052026">Flux 31052026 — 02/06/2026</option><option value="30052026">Flux 30052026 — 02/06/2026</option><option value="29052026">Flux 29052026 — 31/05/2026</option><option value="28052026">Flux 28052026 — 29/05/2026</option><option value="27052026">Flux 27052026 — 28/05/2026</option><option value="26052026">Flux 26052026 — 27/05/2026</option><option value="22052026">Flux 22052026 — 23/05/2026</option><option value="21052026">Flux 21052026 — 26/05/2026</option><option value="20052026">Flux 20052026 — 27/05/2026</option></select></div>
       <button class="btn btn-primary" id="cmp-go">Comparer</button>
       <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px">
         <input type="checkbox" id="cmp-changed" checked=""> écarts uniquement</label>
@@ -442,21 +459,7 @@
 
   <div class="chart-card">
     <div class="section-title">Historique des derniers runs (pipeline &amp; SQL)</div>
-    <div class="table-wrap" id="runs-table"><table><thead><tr>
-      <th>Type</th><th>Démarré</th><th>Durée</th><th>Statut</th><th>Détail</th><th>Utilisateur</th><th>Logs</th>
-      </tr></thead><tbody><tr><td>📄 Rapport</td><td>05/07/2026 21:07:38</td><td>1.9s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Rapport CODIR généré : rapport_codir_16042026.html</td>
-          <td style="color:var(--text-dim)">127.0.0.1</td><td>—</td></tr><tr><td>📄 Rapport</td><td>05/07/2026 21:07:36</td><td>2.3s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Rapport CODIR généré : rapport_codir_16042026.html</td>
-          <td style="color:var(--text-dim)">127.0.0.1</td><td>—</td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:48:26</td><td>332.2s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 6/8 étapes OK</td>
-          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;a8e36a08b1f3&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:44:34</td><td>105.8s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 5/8 étapes OK</td>
-          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;41554e09aebc&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 20:01:49</td><td>178.2s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 5/8 étapes OK</td>
-          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;86e225cf3867&#39;)">voir</a></td></tr><tr><td>⚙️ Pipeline</td><td>05/07/2026 15:33:28</td><td>12.1s</td>
-          <td><span style="color:var(--success);font-weight:700">✓ OK</span></td><td>Sélection — 1/8 étapes OK</td>
-          <td style="color:var(--text-dim)">u_lpillon</td><td><a style="color:var(--info);cursor:pointer;text-decoration:underline" onclick="showLogs(&#39;9dfd92c401a0&#39;)">voir</a></td></tr></tbody></table></div>
+    <div class="table-wrap" id="runs-table"><div style="color:var(--text-dim)">Aucun run enregistré.</div></div>
   </div>
 
   <!-- Modale logs d'un run -->
@@ -848,6 +851,55 @@ async function showLogs(id){
 document.getElementById("logs-modal").addEventListener("click",e=>{
   if(e.target.id==="logs-modal") e.target.style.display="none";});
 
+// ── Résorption TP GED : OK/KO par jour ouvré, pour un flux donné ──
+let chartGedTl=null;
+
+// Le flux affiché est celui du calendrier (#date-picker). Sans sélection,
+// le back-end retombe sur le flux le plus récent du suivi TP GED.
+async function loadGedTimeline(){
+  const days=document.getElementById("ged-days").value;
+  const msg=document.getElementById("ged-timeline-msg");
+  const title=document.getElementById("ged-title");
+  let flux="";
+  if(selectedDate){
+    const [y,m,d]=selectedDate.split("-");
+    flux=`${d}${m}${y}`;
+  }
+  try{
+    const r=await fetch("/dashboard/api/ged-timeline?days="+days+
+      (flux?"&flux="+encodeURIComponent(flux):""));
+    const j=await r.json();
+    const fd=j.flux_id&&j.flux_id.length===8
+      ? `${j.flux_id.slice(0,2)}/${j.flux_id.slice(2,4)}/${j.flux_id.slice(4)}` : null;
+    title.textContent="Résorption TP GED — OK / KO par jour ouvré"+(fd?` — flux du ${fd}`:"");
+    if(!j.available){msg.textContent="Suivi TP GED inaccessible.";return;}
+    if(!j.labels.length){msg.textContent=j.reason||"Aucune donnée sur la période.";
+      if(chartGedTl){chartGedTl.destroy();chartGedTl=null;} return;}
+    msg.textContent="";
+
+    if(chartGedTl) chartGedTl.destroy();
+    chartGedTl=new Chart(document.getElementById("chart-ged-timeline"),{
+      type:"line",
+      data:{labels:j.labels,datasets:[
+        {label:"OK (rapprochées)",data:j.ok,borderColor:"#6ab023",
+         backgroundColor:"rgba(106,176,35,.25)",fill:true,tension:.2,pointRadius:2},
+        {label:"KO (en attente)",data:j.ko,borderColor:"#ef4444",
+         backgroundColor:"rgba(239,68,68,.18)",fill:true,tension:.2,pointRadius:2},
+      ]},
+      options:{responsive:true,interaction:{mode:"index",intersect:false},
+        plugins:{legend:{position:"bottom",labels:{color:"#a0a0b0",font:{size:11}}},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label} : ${c.parsed.y.toLocaleString("fr-FR")}`+
+            (j.total?` (${(c.parsed.y*100/j.total).toFixed(1)} %)`:"")}}},
+        scales:{
+          x:{ticks:{color:"#666680",maxRotation:0,autoSkipPadding:12}},
+          y:{stacked:false,beginAtZero:true,
+             ticks:{color:"#666680",callback:v=>kfmt(v)},
+             title:{display:true,text:"Cartes TP",color:"#666680"}}}}
+    });
+  }catch(e){msg.textContent="Chargement impossible.";}
+}
+document.getElementById("ged-days").addEventListener("change",loadGedTimeline);
+
 // ── Comparaison de flux (#1) ──
 async function loadFluxList(){
   try{
@@ -887,18 +939,20 @@ document.getElementById("cmp-go").addEventListener("click",async()=>{
   }catch(e){box.innerHTML='<div class="alert alert-err">Erreur lors de la comparaison des flux.</div>';}
 });
 
-document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();});
+document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();loadGedTimeline();});
 load();
 loadConnections();
 loadRuns();
 loadAlerts();
 loadDetails();
 loadFluxList();
-// Date picker
+loadGedTimeline();
+// Date picker — pilote aussi le graphe de résorption TP GED.
 document.getElementById("date-picker").addEventListener("change", function () {
   selectedDate = this.value || null;
   document.getElementById("btn-date-reset").style.display = selectedDate ? "inline-flex" : "none";
   load();
+  loadGedTimeline();
 });
 
 document.getElementById("btn-date-reset").addEventListener("click", function () {
@@ -906,6 +960,7 @@ document.getElementById("btn-date-reset").addEventListener("click", function () 
   document.getElementById("date-picker").value = "";
   this.style.display = "none";
   load();
+  loadGedTimeline();
 });
 
 // Optionnel : griser les dates sans données
