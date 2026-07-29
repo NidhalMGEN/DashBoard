@@ -83,7 +83,10 @@ COL_NONNOE = "non noemisable"
 #
 # À METTRE À JOUR à chaque nouvelle offre : tout libcrt absent de cette table
 # est exclu du récapitulatif ET des totaux, avec une alerte explicite.
-NOEMIE_GROUPES: List[Tuple[int, str, str, List[str]]] = [
+# L'ordre du tableau est celui de cette liste (= colonne L du fichier de
+# référence). Les deux dernières lignes ont un ordre vide chez Laurence : on
+# reproduit la cellule vide, la position en fin de tableau suffit.
+NOEMIE_GROUPES: List[Tuple[Optional[int], str, str, List[str]]] = [
     (1,  "C", "NUANCE",                            ["NUANCE"]),
     (2,  "C", "PSC SANTE MEAE",                    ["PSC SANTE MEAE"]),
     (3,  "C", "Education Jeunesse Sports Enseignement Supérieur Recherche",
@@ -102,10 +105,8 @@ NOEMIE_GROUPES: List[Tuple[int, str, str, List[str]]] = [
     (12, "I", "MISP ACTIF + MISP + MISP R",        ["MISP ACTIF", "MISP", "MISP R"]),
     (13, "I", "C2S PF + C2S",                      ["C2S PF", "C2S"]),
     (14, "I", "C2S SORTIE",                        ["C2S SORTIE"]),
-    # Sans ordre dans le fichier de référence (affichées en fin de tableau) :
-    # numérotées 15/16 pour figer un ordre reproductible.
-    (15, "I", "PSC SANTE MIOM",                    ["PSC SANTE MIOM"]),
-    (16, "I", "PSC SANTE MSST",                    ["PSC SANTE MSST"]),
+    (None, "C", "PSC SANTE MIOM",                  ["PSC SANTE MIOM"]),
+    (None, "C", "PSC SANTE MSST",                  ["PSC SANTE MSST"]),
 ]
 
 # ─── FORMATS / STYLES (alignés sur 05_generation_tcd.py) ──────────────────────
@@ -115,6 +116,7 @@ FMT_PCT = "0.00%"
 
 _HEADER_FILL = PatternFill("solid", fgColor="1F497D")
 _HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
+_GROUP_FILL  = PatternFill("solid", fgColor="E2EFDA")   # vert du bloc F→L
 _TOTAL_FILL  = PatternFill("solid", fgColor="DCE6F1")
 _TOTAL_FONT  = Font(bold=True, size=10)
 _GRAND_FILL  = PatternFill("solid", fgColor="FFF2CC")
@@ -277,9 +279,13 @@ def controler_couverture(rows: Dict[str, dict]) -> List[str]:
 
 
 def consolider(rows: Dict[str, dict]) -> List[dict]:
-    """Une entrée par groupe de la config, dans l'ordre d'affichage."""
+    """Une entrée par groupe de la config, dans l'ordre d'affichage.
+
+    Pas de tri : NOEMIE_GROUPES est déjà dans l'ordre de la colonne L du
+    fichier de référence, y compris les deux dernières lignes sans ordre.
+    """
     groupes = []
-    for ordre, ic, libelle, membres in sorted(NOEMIE_GROUPES, key=lambda g: g[0]):
+    for ordre, ic, libelle, membres in NOEMIE_GROUPES:
         presents = [m for m in membres if m in rows]
         actifs  = sum(rows[m]["actifs"]  for m in presents)
         non_act = sum(rows[m]["non_act"] for m in presents)
@@ -315,48 +321,61 @@ def totaux(groupes: List[dict]) -> Dict[str, dict]:
 # ─── ÉCRITURE DE LA FEUILLE ───────────────────────────────────────────────────
 
 def write_recap(wb, groupes: List[dict], tot: Dict[str, dict]) -> None:
-    """Feuille 'Taux_Noémisation' — une ligne par client/offre consolidé.
+    """Feuille 'Taux_Noémisation' — reprise à l'identique du bloc vert F→L.
 
-    Structure calquée sur Feuil7 du TCD : ordre d'affichage, libellé du
-    regroupement, valeurs agrégées, taux, rattachement I/C.
+    Colonnes, libellés et mise en forme repris du fichier de référence :
+      F Actifs2 · G Non actifs2 · H Non_noémisable2 · I Taux · J Offres
+      K Individuel ou Collectif · L ordre
+
+    Convention de Laurence respectée : F/G/H ne sont renseignées que sur les
+    regroupements multi-offres. Une offre isolée n'a pas de sous-total à
+    afficher — seul son taux figure en colonne I.
     """
     if RECAP_SHEET in wb.sheetnames:
         del wb[RECAP_SHEET]
     ws = wb.create_sheet(RECAP_SHEET)
     ws.sheet_properties.tabColor = _TAB_COLOR
 
-    entetes = ["ordre", "Client / Offre", "Actifs", "non Actifs",
-               "Non_noémisable", "Taux de noémisation", "Individuel ou Collectif"]
+    entetes = ["Actifs2", "Non actifs2", "Non_noémisable2", "Taux", "Offres",
+               "Individuel ou Collectif", "ordre"]
     for i, libelle in enumerate(entetes, start=1):
         cell = ws.cell(row=1, column=i, value=libelle)
         cell.fill, cell.font, cell.alignment = _HEADER_FILL, _HEADER_FONT, _CENTER
 
     for i, g in enumerate(groupes, start=2):
-        valeurs = [(1, g["ordre"], None), (2, g["libelle"], None),
-                   (3, g["actifs"], FMT_INT), (4, g["non_act"], FMT_INT),
-                   (5, g["non_noe"], FMT_INT), (6, g["taux"], FMT_PCT),
-                   (7, g["indcol"], None)]
+        regroupement = len(g["membres"]) > 1
+        valeurs = [
+            (1, g["actifs"]  if regroupement else None, FMT_INT),
+            (2, g["non_act"] if regroupement else None, FMT_INT),
+            (3, g["non_noe"] if regroupement else None, FMT_INT),
+            (4, g["taux"],    FMT_PCT),
+            (5, g["libelle"], None),
+            (6, g["indcol"],  None),
+            (7, g["ordre"],   None),
+        ]
         for col, value, fmt in valeurs:
             cell = ws.cell(row=i, column=col, value=value)
             cell.font = _DATA_FONT
-            cell.alignment = _LEFT if col == 2 else _CENTER
+            cell.fill = _GROUP_FILL
+            cell.alignment = _LEFT if col == 5 else _CENTER
             if fmt:
                 cell.number_format = fmt
 
-    # Totaux : ce sont les 3 indicateurs remontés au dashboard.
+    # Totaux : les 3 indicateurs remontés au dashboard, alignés sur les
+    # colonnes agrégées du bloc (F/G/H/I).
     start = len(groupes) + 3
     for i, libelle in enumerate(["Total", "Total Collectif", "Total Individuel"]):
         r, t  = start + i, tot[libelle]
         grand = (libelle == "Total")
         fill  = _GRAND_FILL if grand else _TOTAL_FILL
         font  = _GRAND_FONT if grand else _TOTAL_FONT
-        valeurs = [(2, libelle, None), (3, t["actifs"], FMT_INT),
-                   (4, t["non_act"], FMT_INT), (5, t["non_noe"], FMT_INT),
-                   (6, t["taux"], FMT_PCT)]
+        valeurs = [(1, t["actifs"], FMT_INT), (2, t["non_act"], FMT_INT),
+                   (3, t["non_noe"], FMT_INT), (4, t["taux"], FMT_PCT),
+                   (5, libelle, None)]
         for col, value, fmt in valeurs:
             cell = ws.cell(row=r, column=col, value=value)
             cell.font, cell.fill = font, fill
-            cell.alignment = _LEFT if col == 2 else _CENTER
+            cell.alignment = _LEFT if col == 5 else _CENTER
             if fmt:
                 cell.number_format = fmt
 
@@ -364,7 +383,7 @@ def write_recap(wb, groupes: List[dict], tot: Dict[str, dict]) -> None:
     for i in range(1, len(entetes) + 1):
         largeur = max((len(str(ws.cell(row=r, column=i).value or ""))
                        for r in range(1, ws.max_row + 1)), default=10)
-        ws.column_dimensions[get_column_letter(i)].width = min(max(largeur + 2, 10), 60)
+        ws.column_dimensions[get_column_letter(i)].width = min(max(largeur + 2, 12), 60)
     print(f"  [RECAP]   {len(groupes)} clients/offres consolidés")
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
