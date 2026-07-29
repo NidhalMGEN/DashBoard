@@ -69,6 +69,20 @@ COL_ACTIFS = "actifs"
 COL_NONACT = "non actifs"
 COL_NONNOE = "non noemisable"
 
+# Bloc F→L : présent seulement si Laurence a déjà complété le fichier.
+COL_ACTIFS2 = "actifs2"
+COL_NONACT2 = "non actifs2"
+COL_NONNOE2 = "non noemisable2"
+COL_TAUX    = "taux"
+COL_OFFRES  = "offres"
+COL_INDCOL  = "individuel ou collectif"
+COL_ORDRE   = "ordre"
+
+# Libellés d'en-tête du bloc, repris à l'identique du fichier de référence
+# (casse comprise : "Non_Noémisable2" prend bien deux majuscules chez elle).
+ENTETES_BLOC = ["Actifs2", "Non actifs2", "Non_Noémisable2", "Taux", "Offres",
+                "Individuel ou Collectif", "ordre"]
+
 # ─── CONFIG REGROUPEMENTS CLIENT/OFFRE ────────────────────────────────────────
 # Figée d'après le fichier de référence 27072026_Taux_Noemie.xlsx complété par
 # PILLON Laurence. L'extraction mensuelle ne contient plus ces informations.
@@ -105,8 +119,13 @@ NOEMIE_GROUPES: List[Tuple[Optional[int], str, str, List[str]]] = [
     (12, "I", "MISP ACTIF + MISP + MISP R",        ["MISP ACTIF", "MISP", "MISP R"]),
     (13, "I", "C2S PF + C2S",                      ["C2S PF", "C2S"]),
     (14, "I", "C2S SORTIE",                        ["C2S SORTIE"]),
-    (None, "C", "PSC SANTE MIOM",                  ["PSC SANTE MIOM"]),
-    (None, "C", "PSC SANTE MSST",                  ["PSC SANTE MSST"]),
+    # Rattachement "I" repris du fichier de référence 27072026_Taux_Noemie 2.
+    # ATTENTION : une autre version du même fichier les classe en "C", ce qui
+    # fait passer le taux Collectif de 83,63 % à 83,61 %. À confirmer avec
+    # Laurence. Sans effet tant qu'elle fournit le bloc F→L : dans ce cas le
+    # rattachement est lu dans le fichier, cette table n'étant qu'un repli.
+    (None, "I", "PSC SANTE MIOM",                  ["PSC SANTE MIOM"]),
+    (None, "I", "PSC SANTE MSST",                  ["PSC SANTE MSST"]),
 ]
 
 # ─── FORMATS / STYLES (alignés sur 05_generation_tcd.py) ──────────────────────
@@ -221,6 +240,11 @@ def read_data_rows(ws, header_row: int, cols: Dict[str, int]) -> Dict[str, dict]
         if not norm or norm.startswith("total"):
             break
         libelle = str(libcrt).strip()
+
+        def lire(cle):
+            """Valeur brute d'une colonne du bloc F→L, None si absente."""
+            return ws.cell(row=r, column=cols[cle]).value if cle in cols else None
+
         if libelle in rows:
             print(f"  [WARN]    libcrt '{libelle}' présent en double "
                   f"(ligne {r}) — valeurs cumulées.")
@@ -232,6 +256,11 @@ def read_data_rows(ws, header_row: int, cols: Dict[str, int]) -> Dict[str, dict]
             "actifs":  _num(ws.cell(row=r, column=cols[COL_ACTIFS]).value),
             "non_act": _num(ws.cell(row=r, column=cols[COL_NONACT]).value),
             "non_noe": _num(ws.cell(row=r, column=cols[COL_NONNOE]).value),
+            # Bloc F→L éventuel — laissé brut (None = cellule vide).
+            "actifs2": lire(COL_ACTIFS2), "non_act2": lire(COL_NONACT2),
+            "non_noe2": lire(COL_NONNOE2), "taux": lire(COL_TAUX),
+            "offres": lire(COL_OFFRES), "indcol": lire(COL_INDCOL),
+            "ordre": lire(COL_ORDRE),
         }
     return rows
 
@@ -278,8 +307,69 @@ def controler_couverture(rows: Dict[str, dict]) -> List[str]:
     return inconnus
 
 
-def consolider(rows: Dict[str, dict]) -> List[dict]:
-    """Une entrée par groupe de la config, dans l'ordre d'affichage.
+def bloc_exploitable(rows: Dict[str, dict]) -> bool:
+    """Le fichier porte-t-il un bloc F→L utilisable ?
+
+    Deux conditions : le bloc est renseigné, ET les valeurs calculées sont
+    disponibles. Le fichier de Laurence stocke F→I sous forme de formules
+    Excel ; leur résultat n'est lisible que si le classeur a été enregistré
+    par Excel (valeurs en cache). Un fichier généré par un outil tiers peut
+    porter les formules sans cache — auquel cas on retombe sur la config.
+    """
+    renseigne = [r for r in rows.values()
+                 if r.get("offres") or r.get("ordre") is not None]
+    if not renseigne:
+        return False
+    regroupements = [r for r in rows.values()
+                     if r.get("offres") and "+" in str(r["offres"])]
+    if regroupements and all(r["actifs2"] is None for r in regroupements):
+        print("  [WARN]    Bloc F→L présent mais sans valeurs calculées "
+              "(formules non évaluées).\n"
+              "            → Repli sur la config NOEMIE_GROUPES.")
+        return False
+    return True
+
+
+def consolider_depuis_fichier(rows: Dict[str, dict]) -> List[dict]:
+    """Groupes lus dans le bloc F→L du fichier — c'est Laurence qui décide.
+
+    Ligne porteuse = ligne avec un libellé 'Offres' OU un 'ordre'. Les deux
+    critères sont nécessaires : dans le fichier de référence, la 1ʳᵉ ligne
+    (NUANCE) a un ordre mais pas de libellé, et les deux dernières
+    (PSC SANTE MIOM/MSST) ont un libellé mais pas d'ordre.
+
+    Les valeurs agrégées sont reprises telles quelles : inutile de redériver
+    l'appartenance des offres depuis le libellé, qui n'est pas fiable
+    (cf. "EFS SANTE" pour le libcrt "EFF SANTE").
+    """
+    groupes = []
+    for libcrt, r in rows.items():
+        porteuse = bool(r.get("offres")) or r.get("ordre") is not None
+        if not porteuse:
+            continue                      # ligne membre : agrégée chez sa porteuse
+        regroupement = r["actifs2"] is not None
+        actifs  = _num(r["actifs2"])  if regroupement else r["actifs"]
+        non_act = _num(r["non_act2"]) if regroupement else r["non_act"]
+        non_noe = _num(r["non_noe2"]) if regroupement else r["non_noe"]
+        ordre = r["ordre"] if isinstance(r["ordre"], (int, float)) else None
+        groupes.append({
+            "ordre": int(ordre) if ordre is not None else None,
+            "indcol": str(r["indcol"]).strip().upper()[:1] if r["indcol"] else "",
+            "libelle": str(r["offres"]).strip() if r["offres"] else libcrt,
+            "regroupement": regroupement,
+            "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
+            # Taux recalculé plutôt que recopié : dans le fichier de référence
+            # il est vide sur les offres à 0 actif (MIOM/MSST).
+            "taux": _taux(actifs, non_act, non_noe),
+        })
+    # Ordre d'affichage de la colonne L ; lignes sans ordre reléguées en fin,
+    # en conservant leur ordre d'apparition dans le fichier.
+    groupes.sort(key=lambda g: (g["ordre"] is None, g["ordre"] or 0))
+    return groupes
+
+
+def consolider_depuis_config(rows: Dict[str, dict]) -> List[dict]:
+    """Groupes issus de NOEMIE_GROUPES, dans l'ordre de la liste.
 
     Pas de tri : NOEMIE_GROUPES est déjà dans l'ordre de la colonne L du
     fichier de référence, y compris les deux dernières lignes sans ordre.
@@ -292,7 +382,7 @@ def consolider(rows: Dict[str, dict]) -> List[dict]:
         non_noe = sum(rows[m]["non_noe"] for m in presents)
         groupes.append({
             "ordre": ordre, "indcol": ic, "libelle": libelle,
-            "membres": presents,
+            "regroupement": len(presents) > 1,
             "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
             "taux": _taux(actifs, non_act, non_noe),
         })
@@ -336,14 +426,13 @@ def write_recap(wb, groupes: List[dict], tot: Dict[str, dict]) -> None:
     ws = wb.create_sheet(RECAP_SHEET)
     ws.sheet_properties.tabColor = _TAB_COLOR
 
-    entetes = ["Actifs2", "Non actifs2", "Non_noémisable2", "Taux", "Offres",
-               "Individuel ou Collectif", "ordre"]
+    entetes = ENTETES_BLOC
     for i, libelle in enumerate(entetes, start=1):
         cell = ws.cell(row=1, column=i, value=libelle)
         cell.fill, cell.font, cell.alignment = _HEADER_FILL, _HEADER_FONT, _CENTER
 
     for i, g in enumerate(groupes, start=2):
-        regroupement = len(g["membres"]) > 1
+        regroupement = g["regroupement"]
         valeurs = [
             (1, g["actifs"]  if regroupement else None, FMT_INT),
             (2, g["non_act"] if regroupement else None, FMT_INT),
@@ -398,11 +487,15 @@ def process(input_file: Path) -> Path:
     shutil.copy2(input_file, output_file)
     print("\n[COPY]    Fichier dupliqué vers Output/")
 
-    wb = load_workbook(output_file)
-    ws = wb[wb.sheetnames[0]]
-    header_row = find_header_row(ws)
-    cols = map_columns(ws, header_row)
-    print(f"[LOAD]    Feuille '{ws.title}' — en-tête ligne {header_row}")
+    # Deux ouvertures : data_only=True rend les résultats des formules F→I
+    # (openpyxl ne calcule rien), l'autre conserve ces formules dans la copie
+    # de sortie — sauvegarder le classeur data_only les remplacerait par des
+    # valeurs figées et détruirait le fichier de Laurence.
+    wb_val = load_workbook(output_file, data_only=True)
+    ws_val = wb_val[wb_val.sheetnames[0]]
+    header_row = find_header_row(ws_val)
+    cols = map_columns(ws_val, header_row)
+    print(f"[LOAD]    Feuille '{ws_val.title}' — en-tête ligne {header_row}")
 
     manquantes = [c for c in (COL_LIBCRT, COL_ACTIFS, COL_NONACT, COL_NONNOE)
                   if c not in cols]
@@ -412,15 +505,23 @@ def process(input_file: Path) -> Path:
             f"  Colonnes trouvées : {sorted(cols)}"
         )
 
-    rows = read_data_rows(ws, header_row, cols)
+    rows = read_data_rows(ws_val, header_row, cols)
+    wb_val.close()
     print(f"[PARSER]  {len(rows)} libcrt lus")
 
-    print("\n[CHECK]   Contrôle de couverture config / extraction...")
-    controler_couverture(rows)
-
     print("\n[CALCUL]  Consolidation par client/offre...")
-    groupes = consolider(rows)
+    if bloc_exploitable(rows):
+        print("  [SOURCE]  Bloc F→L du fichier (offres, rattachement C/I et "
+              "ordre repris de Laurence)")
+        groupes = consolider_depuis_fichier(rows)
+    else:
+        print("  [SOURCE]  Config NOEMIE_GROUPES par défaut "
+              "(le fichier ne porte que les colonnes A→E)")
+        controler_couverture(rows)
+        groupes = consolider_depuis_config(rows)
     tot = totaux(groupes)
+
+    wb = load_workbook(output_file)
 
     print("\n[FEUILLE] Génération du récapitulatif...")
     write_recap(wb, groupes, tot)
