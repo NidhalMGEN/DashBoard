@@ -307,86 +307,116 @@ def controler_couverture(rows: Dict[str, dict]) -> List[str]:
     return inconnus
 
 
-def bloc_exploitable(rows: Dict[str, dict]) -> bool:
-    """Le fichier porte-t-il un bloc F→L utilisable ?
+def _index_config() -> Dict[str, Tuple[Optional[int], str, str, str]]:
+    """libcrt (n'importe quel membre) → (ordre, C/I, libellé, porteuse) config."""
+    idx: Dict[str, Tuple[Optional[int], str, str, str]] = {}
+    for ordre, ic, libelle, membres in NOEMIE_GROUPES:
+        for m in membres:
+            idx[m] = (ordre, ic, libelle, membres[0])
+    return idx
 
-    Deux conditions : le bloc est renseigné, ET les valeurs calculées sont
+
+def fichier_definit_groupes(rows: Dict[str, dict]) -> bool:
+    """La colonne 'Offres' du fichier est-elle exploitable pour regrouper ?
+
+    Deux conditions : la colonne est renseignée, ET les valeurs calculées sont
     disponibles. Le fichier de Laurence stocke F→I sous forme de formules
     Excel ; leur résultat n'est lisible que si le classeur a été enregistré
-    par Excel (valeurs en cache). Un fichier généré par un outil tiers peut
+    par Excel (valeurs en cache). Un fichier produit par un outil tiers peut
     porter les formules sans cache — auquel cas on retombe sur la config.
     """
-    renseigne = [r for r in rows.values()
-                 if r.get("offres") or r.get("ordre") is not None]
-    if not renseigne:
+    if not any(r.get("offres") for r in rows.values()):
         return False
     regroupements = [r for r in rows.values()
                      if r.get("offres") and "+" in str(r["offres"])]
     if regroupements and all(r["actifs2"] is None for r in regroupements):
-        print("  [WARN]    Bloc F→L présent mais sans valeurs calculées "
-              "(formules non évaluées).\n"
-              "            → Repli sur la config NOEMIE_GROUPES.")
+        print("  [WARN]    Colonne 'Offres' présente mais sans valeurs "
+              "calculées (formules non évaluées).\n"
+              "            → Repli sur la config pour le regroupement.")
         return False
     return True
 
 
-def consolider_depuis_fichier(rows: Dict[str, dict]) -> List[dict]:
-    """Groupes lus dans le bloc F→L du fichier — c'est Laurence qui décide.
+def consolider(rows: Dict[str, dict]) -> Tuple[List[dict], Dict[str, str]]:
+    """Consolide par client/offre, colonne par colonne.
 
-    Ligne porteuse = ligne avec un libellé 'Offres' OU un 'ordre'. Les deux
-    critères sont nécessaires : dans le fichier de référence, la 1ʳᵉ ligne
-    (NUANCE) a un ordre mais pas de libellé, et les deux dernières
-    (PSC SANTE MIOM/MSST) ont un libellé mais pas d'ordre.
+    Chacune des trois informations est prise dans le fichier si Laurence l'a
+    fournie, sinon dans NOEMIE_GROUPES. Les trois sont indépendantes : elle
+    peut envoyer les offres sans l'ordre, le rattachement C/I seul, etc.
 
-    Les valeurs agrégées sont reprises telles quelles : inutile de redériver
-    l'appartenance des offres depuis le libellé, qui n'est pas fiable
-    (cf. "EFS SANTE" pour le libcrt "EFF SANTE").
+      Offres                   → regroupement des lignes
+      Individuel ou Collectif  → ventilation des totaux C / I
+      ordre                    → ordre d'affichage du tableau
+
+    Retourne (groupes, origine de chaque colonne) pour tracer la décision.
     """
-    groupes = []
-    for libcrt, r in rows.items():
-        porteuse = bool(r.get("offres")) or r.get("ordre") is not None
-        if not porteuse:
-            continue                      # ligne membre : agrégée chez sa porteuse
-        regroupement = r["actifs2"] is not None
-        actifs  = _num(r["actifs2"])  if regroupement else r["actifs"]
-        non_act = _num(r["non_act2"]) if regroupement else r["non_act"]
-        non_noe = _num(r["non_noe2"]) if regroupement else r["non_noe"]
-        ordre = r["ordre"] if isinstance(r["ordre"], (int, float)) else None
-        groupes.append({
-            "ordre": int(ordre) if ordre is not None else None,
-            "indcol": str(r["indcol"]).strip().upper()[:1] if r["indcol"] else "",
-            "libelle": str(r["offres"]).strip() if r["offres"] else libcrt,
-            "regroupement": regroupement,
-            "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
-            # Taux recalculé plutôt que recopié : dans le fichier de référence
-            # il est vide sur les offres à 0 actif (MIOM/MSST).
-            "taux": _taux(actifs, non_act, non_noe),
-        })
-    # Ordre d'affichage de la colonne L ; lignes sans ordre reléguées en fin,
-    # en conservant leur ordre d'apparition dans le fichier.
+    idx = _index_config()
+    groupes: List[dict] = []
+    origine = {"offres": "config", "indcol": "config", "ordre": "config"}
+
+    if fichier_definit_groupes(rows):
+        origine["offres"] = "fichier"
+        # Ligne porteuse = libellé 'Offres' OU 'ordre' renseigné. Les deux
+        # critères sont nécessaires : dans le fichier de référence la 1ʳᵉ ligne
+        # (NUANCE) a un ordre sans libellé, et les deux dernières
+        # (PSC SANTE MIOM/MSST) un libellé sans ordre.
+        for libcrt, r in rows.items():
+            if not (r.get("offres") or r.get("ordre") is not None):
+                continue                  # ligne membre : agrégée chez sa porteuse
+            # Valeurs agrégées reprises telles quelles : inutile de redériver
+            # l'appartenance des offres depuis le libellé, qui n'est pas fiable
+            # (cf. "EFS SANTE" pour le libcrt "EFF SANTE").
+            regroupement = r["actifs2"] is not None
+            actifs  = _num(r["actifs2"])  if regroupement else r["actifs"]
+            non_act = _num(r["non_act2"]) if regroupement else r["non_act"]
+            non_noe = _num(r["non_noe2"]) if regroupement else r["non_noe"]
+            groupes.append({
+                "porteur": libcrt, "regroupement": regroupement,
+                "libelle": str(r["offres"]).strip() if r.get("offres")
+                           else idx.get(libcrt, (None, "", libcrt, ""))[2],
+                "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
+                # Taux recalculé plutôt que recopié : dans le fichier de
+                # référence il est vide sur les offres à 0 actif (MIOM/MSST).
+                "taux": _taux(actifs, non_act, non_noe),
+            })
+    else:
+        controler_couverture(rows)
+        for ordre, ic, libelle, membres in NOEMIE_GROUPES:
+            presents = [m for m in membres if m in rows]
+            actifs  = sum(rows[m]["actifs"]  for m in presents)
+            non_act = sum(rows[m]["non_act"] for m in presents)
+            non_noe = sum(rows[m]["non_noe"] for m in presents)
+            groupes.append({
+                "porteur": membres[0], "regroupement": len(presents) > 1,
+                "libelle": libelle,
+                "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
+                "taux": _taux(actifs, non_act, non_noe),
+            })
+
+    # Rattachement C/I et ordre : fichier prioritaire, config en repli, pour
+    # chaque groupe indépendamment.
+    for g in groupes:
+        r   = rows.get(g["porteur"], {})
+        cfg = idx.get(g["porteur"], (None, "", "", ""))
+
+        ic_fichier = r.get("indcol")
+        if ic_fichier:
+            g["indcol"] = str(ic_fichier).strip().upper()[:1]
+            origine["indcol"] = "fichier"
+        else:
+            g["indcol"] = cfg[1]
+
+        ordre_fichier = r.get("ordre")
+        if isinstance(ordre_fichier, (int, float)):
+            g["ordre"] = int(ordre_fichier)
+            origine["ordre"] = "fichier"
+        else:
+            g["ordre"] = cfg[0]
+
+    # Tri stable : les groupes sans ordre restent en fin, dans leur ordre
+    # d'apparition (fichier) ou de déclaration (config).
     groupes.sort(key=lambda g: (g["ordre"] is None, g["ordre"] or 0))
-    return groupes
-
-
-def consolider_depuis_config(rows: Dict[str, dict]) -> List[dict]:
-    """Groupes issus de NOEMIE_GROUPES, dans l'ordre de la liste.
-
-    Pas de tri : NOEMIE_GROUPES est déjà dans l'ordre de la colonne L du
-    fichier de référence, y compris les deux dernières lignes sans ordre.
-    """
-    groupes = []
-    for ordre, ic, libelle, membres in NOEMIE_GROUPES:
-        presents = [m for m in membres if m in rows]
-        actifs  = sum(rows[m]["actifs"]  for m in presents)
-        non_act = sum(rows[m]["non_act"] for m in presents)
-        non_noe = sum(rows[m]["non_noe"] for m in presents)
-        groupes.append({
-            "ordre": ordre, "indcol": ic, "libelle": libelle,
-            "regroupement": len(presents) > 1,
-            "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
-            "taux": _taux(actifs, non_act, non_noe),
-        })
-    return groupes
+    return groupes, origine
 
 
 def totaux(groupes: List[dict]) -> Dict[str, dict]:
@@ -510,15 +540,10 @@ def process(input_file: Path) -> Path:
     print(f"[PARSER]  {len(rows)} libcrt lus")
 
     print("\n[CALCUL]  Consolidation par client/offre...")
-    if bloc_exploitable(rows):
-        print("  [SOURCE]  Bloc F→L du fichier (offres, rattachement C/I et "
-              "ordre repris de Laurence)")
-        groupes = consolider_depuis_fichier(rows)
-    else:
-        print("  [SOURCE]  Config NOEMIE_GROUPES par défaut "
-              "(le fichier ne porte que les colonnes A→E)")
-        controler_couverture(rows)
-        groupes = consolider_depuis_config(rows)
+    groupes, origine = consolider(rows)
+    print(f"  [SOURCE]  offres={origine['offres']}  "
+          f"individuel/collectif={origine['indcol']}  ordre={origine['ordre']}"
+          f"   (fichier = fourni par Laurence, config = valeur par défaut)")
     tot = totaux(groupes)
 
     wb = load_workbook(output_file)
