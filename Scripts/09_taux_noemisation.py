@@ -83,6 +83,14 @@ COL_ORDRE   = "ordre"
 ENTETES_BLOC = ["Actifs2", "Non actifs2", "Non_Noémisable2", "Taux", "Offres",
                 "Individuel ou Collectif", "ordre"]
 
+# Coquilles connues du libellé 'Offres' : il est saisi à la main et sert
+# d'étiquette, pas de clé. Ici "EFS SANTE" désigne le libcrt "EFF SANTE".
+# Tout membre non résolu est signalé en [WARN] — ajouter l'alias ici.
+ALIAS_MEMBRES: Dict[str, str] = {
+    "EFS SANTE":      "EFF SANTE",
+    "EFS SANTE BRED": "EFF SANTE BRED",
+}
+
 # ─── CONFIG REGROUPEMENTS CLIENT/OFFRE ────────────────────────────────────────
 # Figée d'après le fichier de référence 27072026_Taux_Noemie.xlsx complété par
 # PILLON Laurence. L'extraction mensuelle ne contient plus ces informations.
