@@ -186,6 +186,11 @@ def _fmt_int(value: float) -> str:
     """Entier avec séparateur d'espace, pour les traces console."""
     return f"{int(value):,}".replace(",", " ")
 
+
+def _split_membres(label: str) -> List[str]:
+    """Éclate un libellé de regroupement ('A + B+C') en offres membres."""
+    return [m.strip() for m in str(label).split("+") if m.strip()]
+
 # ─── LECTURE DE L'EXTRACTION ──────────────────────────────────────────────────
 
 def find_input_file() -> Optional[Path]:
@@ -325,24 +330,62 @@ def _index_config() -> Dict[str, Tuple[Optional[int], str, str, str]]:
 
 
 def fichier_definit_groupes(rows: Dict[str, dict]) -> bool:
-    """La colonne 'Offres' du fichier est-elle exploitable pour regrouper ?
+    """La colonne 'Offres' du fichier est-elle renseignée ?
 
-    Deux conditions : la colonne est renseignée, ET les valeurs calculées sont
-    disponibles. Le fichier de Laurence stocke F→I sous forme de formules
-    Excel ; leur résultat n'est lisible que si le classeur a été enregistré
-    par Excel (valeurs en cache). Un fichier produit par un outil tiers peut
-    porter les formules sans cache — auquel cas on retombe sur la config.
+    Seul le libellé compte : les colonnes Actifs2/Non actifs2/Non_Noémisable2
+    du fichier ne sont JAMAIS relues. Elles portent des formules Excel dont le
+    résultat en cache peut être périmé — modifier le libellé d'un regroupement
+    ne met pas le cache à jour tant qu'Excel n'a pas recalculé. Les sommes sont
+    donc systématiquement recalculées depuis les colonnes A→E.
     """
-    if not any(r.get("offres") for r in rows.values()):
-        return False
-    regroupements = [r for r in rows.values()
-                     if r.get("offres") and "+" in str(r["offres"])]
-    if regroupements and all(r["actifs2"] is None for r in regroupements):
-        print("  [WARN]    Colonne 'Offres' présente mais sans valeurs "
-              "calculées (formules non évaluées).\n"
-              "            → Repli sur la config pour le regroupement.")
-        return False
-    return True
+    return any(r.get("offres") for r in rows.values())
+
+
+def _membres_du_libelle(libcrt: str, libelle, index_norm: Dict[str, str]
+                        ) -> Tuple[List[str], List[str]]:
+    """Libellé 'Offres' → (libcrt membres résolus, jetons non résolus).
+
+    Le libellé est saisi à la main : on normalise (accents, casse, espaces) et
+    on applique ALIAS_MEMBRES avant d'abandonner un jeton. La porteuse est
+    toujours incluse, même absente de son propre libellé.
+    """
+    membres, orphelins = [], []
+    for jeton in _split_membres(libelle) if libelle else []:
+        cible = ALIAS_MEMBRES.get(jeton.upper(), jeton)
+        resolu = index_norm.get(_norm(cible))
+        (membres if resolu else orphelins).append(resolu or jeton)
+    if libcrt not in membres:
+        membres.insert(0, libcrt)
+    return list(dict.fromkeys(membres)), orphelins
+
+
+def _verifier_partition(groupes: List[dict], rows: Dict[str, dict]) -> None:
+    """Chaque libcrt doit relever d'exactement un groupe.
+
+    Un libcrt cité par deux regroupements est compté deux fois dans les
+    totaux ; un libcrt cité par aucun disparaît du tableau. Les deux cas sont
+    silencieux à la lecture — d'où l'alerte.
+    """
+    proprietaires: Dict[str, List[str]] = {}
+    for g in groupes:
+        for m in g.get("membres", []):
+            proprietaires.setdefault(m, []).append(g["libelle"])
+
+    for libcrt, sources in proprietaires.items():
+        if len(sources) > 1:
+            print(f"  [ALERTE]  '{libcrt}' rattaché à {len(sources)} "
+                  f"regroupements : {sources}\n"
+                  f"            → Compté {len(sources)} fois dans les totaux. "
+                  f"Corriger la colonne 'Offres'.")
+
+    absents = [k for k in rows if k not in proprietaires]
+    if absents:
+        perdus = sum(rows[k]["actifs"] + rows[k]["non_act"] + rows[k]["non_noe"]
+                     for k in absents)
+        print(f"  [ALERTE]  {len(absents)} libcrt cité(s) par aucun "
+              f"regroupement : {absents}\n"
+              f"            → {_fmt_int(perdus)} contrats exclus du tableau "
+              f"et des totaux.")
 
 
 def consolider(rows: Dict[str, dict]) -> Tuple[List[dict], Dict[str, str]]:
@@ -364,6 +407,7 @@ def consolider(rows: Dict[str, dict]) -> Tuple[List[dict], Dict[str, str]]:
 
     if fichier_definit_groupes(rows):
         origine["offres"] = "fichier"
+        index_norm = {_norm(k): k for k in rows}
         # Ligne porteuse = libellé 'Offres' OU 'ordre' renseigné. Les deux
         # critères sont nécessaires : dans le fichier de référence la 1ʳᵉ ligne
         # (NUANCE) a un ordre sans libellé, et les deux dernières
@@ -371,22 +415,27 @@ def consolider(rows: Dict[str, dict]) -> Tuple[List[dict], Dict[str, str]]:
         for libcrt, r in rows.items():
             if not (r.get("offres") or r.get("ordre") is not None):
                 continue                  # ligne membre : agrégée chez sa porteuse
-            # Valeurs agrégées reprises telles quelles : inutile de redériver
-            # l'appartenance des offres depuis le libellé, qui n'est pas fiable
-            # (cf. "EFS SANTE" pour le libcrt "EFF SANTE").
-            regroupement = r["actifs2"] is not None
-            actifs  = _num(r["actifs2"])  if regroupement else r["actifs"]
-            non_act = _num(r["non_act2"]) if regroupement else r["non_act"]
-            non_noe = _num(r["non_noe2"]) if regroupement else r["non_noe"]
+            membres, orphelins = _membres_du_libelle(libcrt, r.get("offres"),
+                                                     index_norm)
+            if orphelins:
+                print(f"  [WARN]    Regroupement '{r['offres']}' : offre(s) "
+                      f"inconnue(s) {orphelins} — exclue(s) de la somme.\n"
+                      f"            → Vérifier l'orthographe, ou ajouter "
+                      f"l'alias dans ALIAS_MEMBRES.")
+            # Sommes recalculées depuis A→E : les colonnes Actifs2/… du fichier
+            # sont ignorées, leur cache Excel pouvant être périmé.
+            actifs  = sum(rows[m]["actifs"]  for m in membres)
+            non_act = sum(rows[m]["non_act"] for m in membres)
+            non_noe = sum(rows[m]["non_noe"] for m in membres)
             groupes.append({
-                "porteur": libcrt, "regroupement": regroupement,
+                "porteur": libcrt, "membres": membres,
+                "regroupement": len(membres) > 1,
                 "libelle": str(r["offres"]).strip() if r.get("offres")
                            else idx.get(libcrt, (None, "", libcrt, ""))[2],
                 "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
-                # Taux recalculé plutôt que recopié : dans le fichier de
-                # référence il est vide sur les offres à 0 actif (MIOM/MSST).
                 "taux": _taux(actifs, non_act, non_noe),
             })
+        _verifier_partition(groupes, rows)
     else:
         controler_couverture(rows)
         for ordre, ic, libelle, membres in NOEMIE_GROUPES:
@@ -395,8 +444,8 @@ def consolider(rows: Dict[str, dict]) -> Tuple[List[dict], Dict[str, str]]:
             non_act = sum(rows[m]["non_act"] for m in presents)
             non_noe = sum(rows[m]["non_noe"] for m in presents)
             groupes.append({
-                "porteur": membres[0], "regroupement": len(presents) > 1,
-                "libelle": libelle,
+                "porteur": membres[0], "membres": presents,
+                "regroupement": len(presents) > 1, "libelle": libelle,
                 "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
                 "taux": _taux(actifs, non_act, non_noe),
             })
