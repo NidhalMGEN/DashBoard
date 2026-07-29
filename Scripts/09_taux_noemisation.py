@@ -4,21 +4,23 @@
 ==============================================================
 
 Entrée  : Input_Data/{PREFIX}_Taux_Noemie*.xlsx   (PREFIX = DDMMYYYY)
-          extraction Power BI — rapport "Taux de Noémisation"
+          extraction Power BI brute — rapport "Taux de Noémisation".
+          SEULES les colonnes libcrt / Actifs / non Actifs / Non_noémisable
+          sont attendues : le regroupement client/offre, le rattachement
+          Individuel/Collectif et l'ordre d'affichage ne figurent PAS dans
+          l'extraction — ils sont figés dans NOEMIE_GROUPES ci-dessous.
 Sortie  : Output/{PREFIX}_Taux_Noemie*.xlsx
-          (copie du fichier source, enrichie)
+          copie du fichier source + feuille 'Taux_Noémisation'.
+          La feuille source n'est jamais modifiée.
 
-Deux phases :
-  1. Complétion de la feuille source : colonnes Actifs2 / Non actifs2 /
-     Non_noémisable2 / Taux / Offres / Individuel ou Collectif / ordre
-     (le bloc « vert » saisi à la main aujourd'hui) + les 3 lignes de totaux.
-  2. Feuille 'Taux_Noémisation' : récapitulatif à plat, une ligne par
-     client/offre consolidé, trié par ordre d'affichage (principe Feuil7).
+Feuille générée (principe Feuil7 du TCD) :
+  une ligne par client/offre consolidé, triée par ordre d'affichage,
+  puis Total / Total Collectif / Total Individuel.
 
 Taux = Actifs / (Actifs + non Actifs + Non_noémisable)
 
-Les 3 indicateurs remontés au dashboard sont les totaux de la phase 2 :
-  taux total · taux Collectif (I/C = C) · taux Individuel (I/C = I)
+Les 3 indicateurs remontés au dashboard sont les totaux :
+  taux total · taux Collectif · taux Individuel
 
 Usage :
   python 09_taux_noemisation.py
@@ -38,7 +40,15 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-# ─── CONFIG ───────────────────────────────────────────────────────────────────
+# Lancé par le pipeline, ce script hérite de PYTHONIOENCODING=utf-8
+# (cf. pipeline_runner.py). Lancé directement, il hérite de la console Windows
+# en cp1252, incapable d'encoder les flèches '→' des messages d'alerte : la
+# trace planterait sur un UnicodeEncodeError au lieu d'afficher le diagnostic.
+for _flux in (sys.stdout, sys.stderr):
+    if hasattr(_flux, "reconfigure"):
+        _flux.reconfigure(encoding="utf-8", errors="replace")
+
+# ─── CONFIG FICHIER ───────────────────────────────────────────────────────────
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASE_DIR   = SCRIPT_DIR if (SCRIPT_DIR / "Input_Data").exists() else SCRIPT_DIR.parent
@@ -52,54 +62,51 @@ INPUT_DIR.mkdir(parents=True, exist_ok=True)
 NOEMIE_FILENAME_RE = re.compile(r"^(\d{8})_Taux[ _]?No[eé]mie.*\.xlsx$", re.IGNORECASE)
 RECAP_SHEET        = "Taux_Noémisation"
 
-# Colonnes de l'extraction brute (Power BI) — repérées par libellé, jamais par
-# lettre : la position dérive dès qu'une colonne est ajoutée en amont.
+# Colonnes attendues dans l'extraction, repérées par libellé normalisé et
+# jamais par lettre : la position dérive dès qu'une colonne est ajoutée en amont.
 COL_LIBCRT = "libcrt"
 COL_ACTIFS = "actifs"
 COL_NONACT = "non actifs"
 COL_NONNOE = "non noemisable"
-COL_PCTACT = "% actifs"
 
-# Colonnes ajoutées par ce script (bloc « vert »).
-COL_ACTIFS2 = "actifs2"
-COL_NONACT2 = "non actifs2"
-COL_NONNOE2 = "non noemisable2"
-COL_TAUX    = "taux"
-COL_OFFRES  = "offres"
-COL_INDCOL  = "individuel ou collectif"
-COL_ORDRE   = "ordre"
-
-OUTPUT_HEADERS = [
-    ("Actifs2",           COL_ACTIFS2),
-    ("Non actifs2",       COL_NONACT2),
-    ("Non_noémisable2",   COL_NONNOE2),
-    ("Taux",              COL_TAUX),
-    ("Offres",            COL_OFFRES),
-    ("Individuel ou Collectif", COL_INDCOL),
-    ("ordre",             COL_ORDRE),
+# ─── CONFIG REGROUPEMENTS CLIENT/OFFRE ────────────────────────────────────────
+# Figée d'après le fichier de référence 27072026_Taux_Noemie.xlsx complété par
+# PILLON Laurence. L'extraction mensuelle ne contient plus ces informations.
+#
+# Format : (ordre d'affichage, "C" | "I", libellé affiché, [libcrt membres])
+#
+# Le libellé est PUREMENT DÉCORATIF : les sommes s'appuient sur la liste de
+# membres, pas sur un découpage du libellé. C'est volontaire — le libellé de
+# référence contient des coquilles (cf. ordre 10 : "EFS SANTE" alors que le
+# libcrt de l'extraction est "EFF SANTE"), qui casseraient un appariement
+# par nom.
+#
+# À METTRE À JOUR à chaque nouvelle offre : tout libcrt absent de cette table
+# est exclu du récapitulatif ET des totaux, avec une alerte explicite.
+NOEMIE_GROUPES: List[Tuple[int, str, str, List[str]]] = [
+    (1,  "C", "NUANCE",                            ["NUANCE"]),
+    (2,  "C", "PSC SANTE MEAE",                    ["PSC SANTE MEAE"]),
+    (3,  "C", "Education Jeunesse Sports Enseignement Supérieur Recherche",
+              ["Education Jeunesse Sports Enseignement Supérieur Recherche"]),
+    (4,  "C", "La juridiction administrative",     ["La juridiction administrative"]),
+    (5,  "C", "PSC SANTE MINISTERE DE LA CULTURE", ["PSC SANTE MINISTERE DE LA CULTURE"]),
+    (6,  "I", "MAEE PR+MAEE SANTE RETRAITE + MAEE PNR",
+              ["MAEE PR", "MAEE SANTE RETRAITE", "MAEE PNR"]),
+    (7,  "I", "MSP RETRAITES+MGEN SANTE",          ["MSP RETRAITES", "MGEN SANTE"]),
+    (8,  "I", "MGEN ALTERNATIVE",                  ["MGEN ALTERNATIVE"]),
+    (9,  "I", "MTE ACTIF + MTE",                   ["MTE ACTIF", "MTE"]),
+    # Libellé "EFS" conservé tel quel (affichage attendu par la direction) ;
+    # les libcrt réels de l'extraction sont bien "EFF SANTE" / "EFF SANTE BRED".
+    (10, "I", "EFS SANTE + EFS SANTE BRED",        ["EFF SANTE", "EFF SANTE BRED"]),
+    (11, "I", "MGEN OJI",                          ["MGEN OJI"]),
+    (12, "I", "MISP ACTIF + MISP + MISP R",        ["MISP ACTIF", "MISP", "MISP R"]),
+    (13, "I", "C2S PF + C2S",                      ["C2S PF", "C2S"]),
+    (14, "I", "C2S SORTIE",                        ["C2S SORTIE"]),
+    # Sans ordre dans le fichier de référence (affichées en fin de tableau) :
+    # numérotées 15/16 pour figer un ordre reproductible.
+    (15, "I", "PSC SANTE MIOM",                    ["PSC SANTE MIOM"]),
+    (16, "I", "PSC SANTE MSST",                    ["PSC SANTE MSST"]),
 ]
-
-# ─── CONFIG REGROUPEMENTS (fallback) ──────────────────────────────────────────
-# Utilisée UNIQUEMENT si l'extraction ne contient pas déjà les colonnes
-# Offres / Individuel ou Collectif / ordre (cas d'un export Power BI brut).
-# Format : "LIBCRT porteur" → (ordre, libellé du regroupement, "C" | "I")
-# Renseignée automatiquement par le script au 1er passage sur un fichier déjà
-# complété (cf. bloc [CONFIG] affiché en fin d'exécution) — copier-coller ici.
-NOEMIE_GROUPES: Dict[str, Tuple[Optional[int], str, str]] = {}
-
-# Rattachement Individuel/Collectif des libcrt membres d'un regroupement
-# (les membres n'ont pas de ligne de synthèse propre mais comptent dans les
-# totaux C/I). Renseignée en même temps que NOEMIE_GROUPES.
-NOEMIE_MEMBRES: Dict[str, str] = {}
-
-# Le libellé de la colonne "Offres" est DESCRIPTIF, pas une clé technique :
-# il contient des coquilles (ex. "EFS SANTE" pour le libcrt "EFF SANTE") car
-# Laurence calcule ses sommes par référence de cellule, pas par nom.
-# Chaque membre non résolu est signalé en [WARN] ; on l'aligne ici.
-ALIAS_MEMBRES: Dict[str, str] = {
-    "EFS SANTE":      "EFF SANTE",
-    "EFS SANTE BRED": "EFF SANTE BRED",
-}
 
 # ─── FORMATS / STYLES (alignés sur 05_generation_tcd.py) ──────────────────────
 
@@ -108,7 +115,6 @@ FMT_PCT = "0.00%"
 
 _HEADER_FILL = PatternFill("solid", fgColor="1F497D")
 _HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
-_GROUP_FILL  = PatternFill("solid", fgColor="E2EFDA")   # vert clair (bloc Laurence)
 _TOTAL_FILL  = PatternFill("solid", fgColor="DCE6F1")
 _TOTAL_FONT  = Font(bold=True, size=10)
 _GRAND_FILL  = PatternFill("solid", fgColor="FFF2CC")
@@ -133,7 +139,7 @@ def _norm(value) -> str:
 
 def _num(value) -> float:
     """Convertit une cellule Excel en float ; cellule vide/texte → 0.0."""
-    if value is None or isinstance(value, str) and not value.strip():
+    if value is None or (isinstance(value, str) and not value.strip()):
         return 0.0
     try:
         return float(value)
@@ -147,11 +153,11 @@ def _taux(actifs: float, non_actifs: float, non_noem: float) -> Optional[float]:
     return actifs / denom if denom else None
 
 
-def _split_membres(label: str) -> List[str]:
-    """Éclate un libellé de regroupement ('A + B+C') en libcrt membres."""
-    return [m.strip() for m in str(label).split("+") if m.strip()]
+def _fmt_int(value: float) -> str:
+    """Entier avec séparateur d'espace, pour les traces console."""
+    return f"{int(value):,}".replace(",", " ")
 
-# ─── I/O ──────────────────────────────────────────────────────────────────────
+# ─── LECTURE DE L'EXTRACTION ──────────────────────────────────────────────────
 
 def find_input_file() -> Optional[Path]:
     """Localise l'extraction Taux_Noémie la plus récente. None si absente
@@ -176,7 +182,7 @@ def find_header_row(ws) -> int:
 
     L'extraction Power BI place un rappel des filtres en ligne 1 et une ligne
     vide en ligne 2 ; l'en-tête est donc en ligne 3 — mais rien ne garantit
-    que ce cadrage soit stable d'un mois sur l'autre.
+    que ce cadrage reste stable d'un mois sur l'autre.
     """
     for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 30)):
         for cell in row:
@@ -199,258 +205,116 @@ def map_columns(ws, header_row: int) -> Dict[str, int]:
     return mapping
 
 
-def read_data_rows(ws, header_row: int, cols: Dict[str, int]) -> List[dict]:
-    """Lit les lignes de données jusqu'aux totaux (exclus).
+def read_data_rows(ws, header_row: int, cols: Dict[str, int]) -> Dict[str, dict]:
+    """Lit les lignes de données jusqu'aux totaux (exclus) → {libcrt: valeurs}.
 
-    Fin de bloc = 1ʳᵉ ligne dont le libcrt est vide ou commence par 'total'.
-    Les lignes de totaux existantes sont réécrites par ce script.
+    Fin de bloc = 1ʳᵉ ligne dont le libcrt est vide ou commence par 'total'
+    (l'extraction peut ou non embarquer ses propres lignes de totaux).
     """
     c_lib = cols[COL_LIBCRT]
-    rows: List[dict] = []
+    rows: Dict[str, dict] = {}
     for r in range(header_row + 1, ws.max_row + 1):
         libcrt = ws.cell(row=r, column=c_lib).value
         norm = _norm(libcrt)
         if not norm or norm.startswith("total"):
             break
-        rows.append({
-            "row":     r,
-            "libcrt":  str(libcrt).strip(),
+        libelle = str(libcrt).strip()
+        if libelle in rows:
+            print(f"  [WARN]    libcrt '{libelle}' présent en double "
+                  f"(ligne {r}) — valeurs cumulées.")
+            rows[libelle]["actifs"]  += _num(ws.cell(row=r, column=cols[COL_ACTIFS]).value)
+            rows[libelle]["non_act"] += _num(ws.cell(row=r, column=cols[COL_NONACT]).value)
+            rows[libelle]["non_noe"] += _num(ws.cell(row=r, column=cols[COL_NONNOE]).value)
+            continue
+        rows[libelle] = {
             "actifs":  _num(ws.cell(row=r, column=cols[COL_ACTIFS]).value),
             "non_act": _num(ws.cell(row=r, column=cols[COL_NONACT]).value),
             "non_noe": _num(ws.cell(row=r, column=cols[COL_NONNOE]).value),
-            # Mapping éventuellement déjà saisi dans le fichier
-            "offres":  ws.cell(row=r, column=cols[COL_OFFRES]).value if COL_OFFRES in cols else None,
-            "indcol":  ws.cell(row=r, column=cols[COL_INDCOL]).value if COL_INDCOL in cols else None,
-            "ordre":   ws.cell(row=r, column=cols[COL_ORDRE]).value  if COL_ORDRE  in cols else None,
-        })
+        }
     return rows
 
-# ─── REGROUPEMENTS ────────────────────────────────────────────────────────────
+# ─── CONSOLIDATION ────────────────────────────────────────────────────────────
 
-def build_groupes(rows: List[dict]) -> Tuple[Dict[str, dict], Dict[str, str]]:
-    """Construit les regroupements client/offre.
+def controler_couverture(rows: Dict[str, dict]) -> List[str]:
+    """Confronte les libcrt de l'extraction à la config.
 
-    Source du mapping, par ordre de priorité :
-      1. les colonnes Offres / Individuel ou Collectif / ordre du fichier
-         (extraction déjà complétée par Laurence) ;
-      2. la config NOEMIE_GROUPES / NOEMIE_MEMBRES (extraction brute A–E).
-
-    Retourne (groupes, indcol_par_libcrt) où groupes est indexé par libcrt
-    porteur : {ordre, label, indcol, membres:[libcrt…]}.
+    Deux écarts possibles, tous deux non bloquants mais signalés :
+      - libcrt inconnu   → offre nouvelle, exclue du récap ET des totaux ;
+      - membre absent    → offre disparue du flux, somme du groupe réduite.
+    Retourne la liste des libcrt inconnus.
     """
-    par_libcrt = {r["libcrt"]: r for r in rows}
-    index_norm = {_norm(lib): lib for lib in par_libcrt}
+    connus = {m for _o, _ic, _lb, membres in NOEMIE_GROUPES for m in membres}
 
-    def resoudre(token: str) -> Optional[str]:
-        """Token du libellé 'Offres' → libcrt réel (via alias si nécessaire)."""
-        cible = ALIAS_MEMBRES.get(token.strip().upper(), token.strip())
-        return index_norm.get(_norm(cible))
+    doublons = [m for m in connus
+                if sum(m in membres for *_x, membres in NOEMIE_GROUPES) > 1]
+    if doublons:
+        print(f"  [WARN]    Config incohérente : {sorted(set(doublons))} "
+              f"rattaché(s) à plusieurs groupes — double comptage.")
 
-    du_fichier = any(r["offres"] for r in rows)
-    groupes: Dict[str, dict] = {}
-    indcol: Dict[str, str] = {}
+    absents = sorted(connus - set(rows))
+    if absents:
+        print(f"  [WARN]    {len(absents)} offre(s) de la config absente(s) du "
+              f"flux : {absents}\n"
+              f"            → Somme du regroupement réduite d'autant.")
 
-    if du_fichier:
-        print("  [MAP]     Mapping lu depuis le fichier (colonnes Offres / "
-              "Individuel ou Collectif / ordre)")
-        for r in rows:
-            if r["indcol"]:
-                indcol[r["libcrt"]] = str(r["indcol"]).strip().upper()[:1]
-            if not r["offres"]:
-                continue                      # ligne membre : pas de synthèse propre
-            tokens  = _split_membres(r["offres"])
-            membres, orphelins = [], []
-            for tok in tokens:
-                cible = resoudre(tok)
-                (membres if cible else orphelins).append(cible or tok)
-            if r["libcrt"] not in membres:
-                # Porteuse absente de son propre libellé (coquille) → réintégrée
-                membres.insert(0, r["libcrt"])
-            if orphelins:
-                print(f"  [WARN]    Regroupement '{r['offres']}' : membre(s) non "
-                      f"résolu(s) {orphelins} — ignoré(s) dans la somme.\n"
-                      f"            → Ajouter l'alias dans ALIAS_MEMBRES si c'est "
-                      f"une coquille de libellé.")
-            ordre = int(r["ordre"]) if isinstance(r["ordre"], (int, float)) else None
-            groupes[r["libcrt"]] = {
-                "ordre":   ordre,
-                "label":   str(r["offres"]).strip(),
-                "indcol":  str(r["indcol"]).strip().upper()[:1] if r["indcol"] else "",
-                "membres": list(dict.fromkeys(membres)),
-            }
-    else:
-        print("  [MAP]     Mapping lu depuis la config NOEMIE_GROUPES "
-              "(extraction brute sans bloc vert)")
-        if not NOEMIE_GROUPES:
-            raise ValueError(
-                "L'extraction ne contient ni colonne 'Offres' ni config "
-                "NOEMIE_GROUPES renseignée.\n"
-                "  → Lancer d'abord le script sur un fichier complété par "
-                "Laurence, puis recopier le bloc [CONFIG] affiché en fin "
-                "d'exécution dans NOEMIE_GROUPES / NOEMIE_MEMBRES."
-            )
-        indcol.update(NOEMIE_MEMBRES)
-        for porteur, (ordre, label, ic) in NOEMIE_GROUPES.items():
-            if porteur not in par_libcrt:
-                print(f"  [WARN]    Offre porteuse '{porteur}' absente du flux "
-                      f"— regroupement ignoré ce mois-ci.")
-                continue
-            membres = [c for c in (resoudre(t) for t in _split_membres(label)) if c]
-            if porteur not in membres:
-                membres.insert(0, porteur)
-            indcol[porteur] = ic
-            for m in membres:
-                indcol.setdefault(m, ic)
-            groupes[porteur] = {"ordre": ordre, "label": label, "indcol": ic,
-                                "membres": list(dict.fromkeys(membres))}
-
-    # Contrôle de partition : chaque libcrt doit appartenir à exactement un
-    # groupe, sinon les totaux double-comptent (ou perdent) des contrats.
-    vus: Dict[str, str] = {}
-    for porteur, g in groupes.items():
-        for m in g["membres"]:
-            if m in vus:
-                print(f"  [WARN]    '{m}' rattaché à la fois à '{vus[m]}' et "
-                      f"'{porteur}' — double comptage dans les totaux.")
-            vus[m] = porteur
-    orphelins = [lib for lib in par_libcrt if lib not in vus]
-    if orphelins:
-        print(f"  [WARN]    {len(orphelins)} libcrt hors regroupement : "
-              f"{orphelins}\n            → Absent(s) du récapitulatif mais "
-              f"compté(s) dans les totaux généraux.")
-
-    return groupes, indcol
+    inconnus = sorted(set(rows) - connus)
+    if inconnus:
+        perdus = sum(rows[k]["actifs"] + rows[k]["non_act"] + rows[k]["non_noe"]
+                     for k in inconnus)
+        print("\n" + "!" * 60)
+        print(f"  [ALERTE]  {len(inconnus)} libcrt absent(s) de NOEMIE_GROUPES — "
+              f"EXCLU(S) du récapitulatif et des totaux :")
+        for k in inconnus:
+            v = rows[k]
+            print(f"            {k:<40} actifs={_fmt_int(v['actifs'])} "
+                  f"non actifs={_fmt_int(v['non_act'])} "
+                  f"non noémisables={_fmt_int(v['non_noe'])}")
+        print(f"            Soit {_fmt_int(perdus)} contrats non comptabilisés.")
+        print("            → Ajouter ces offres à NOEMIE_GROUPES "
+              "(demander à Laurence leur rattachement C/I et leur ordre).")
+        print("!" * 60 + "\n")
+    return inconnus
 
 
-def agreger(groupes: Dict[str, dict], rows: List[dict]) -> Dict[str, dict]:
-    """Somme Actifs / non Actifs / Non_noémisable sur les membres de chaque groupe."""
-    par_libcrt = {r["libcrt"]: r for r in rows}
-    for porteur, g in groupes.items():
-        g["actifs"]  = sum(par_libcrt[m]["actifs"]  for m in g["membres"] if m in par_libcrt)
-        g["non_act"] = sum(par_libcrt[m]["non_act"] for m in g["membres"] if m in par_libcrt)
-        g["non_noe"] = sum(par_libcrt[m]["non_noe"] for m in g["membres"] if m in par_libcrt)
-        g["taux"]    = _taux(g["actifs"], g["non_act"], g["non_noe"])
+def consolider(rows: Dict[str, dict]) -> List[dict]:
+    """Une entrée par groupe de la config, dans l'ordre d'affichage."""
+    groupes = []
+    for ordre, ic, libelle, membres in sorted(NOEMIE_GROUPES, key=lambda g: g[0]):
+        presents = [m for m in membres if m in rows]
+        actifs  = sum(rows[m]["actifs"]  for m in presents)
+        non_act = sum(rows[m]["non_act"] for m in presents)
+        non_noe = sum(rows[m]["non_noe"] for m in presents)
+        groupes.append({
+            "ordre": ordre, "indcol": ic, "libelle": libelle,
+            "membres": presents,
+            "actifs": actifs, "non_act": non_act, "non_noe": non_noe,
+            "taux": _taux(actifs, non_act, non_noe),
+        })
     return groupes
 
 
-def _tri_key(porteur: str, g: dict):
-    """Tri par ordre croissant ; groupes sans ordre relégués en fin de bloc."""
-    return (g["ordre"] is None, g["ordre"] or 0, porteur)
-
-
-def totaux(rows: List[dict], indcol: Dict[str, str]) -> Dict[str, dict]:
+def totaux(groupes: List[dict]) -> Dict[str, dict]:
     """Totaux général / Collectif / Individuel.
 
-    Calculés sur les lignes BRUTES (une par libcrt), jamais sur les agrégats
-    de groupe : chaque libcrt n'est compté qu'une fois, quel que soit son
-    rattachement.
+    Sommés sur les groupes : la config garantit qu'un libcrt appartient à un
+    seul groupe (contrôlé par controler_couverture), donc pas de double
+    comptage et Total == Collectif + Individuel par construction.
     """
     def bloc(sel: List[dict]) -> dict:
-        a  = sum(r["actifs"]  for r in sel)
-        na = sum(r["non_act"] for r in sel)
-        nn = sum(r["non_noe"] for r in sel)
+        a  = sum(g["actifs"]  for g in sel)
+        na = sum(g["non_act"] for g in sel)
+        nn = sum(g["non_noe"] for g in sel)
         return {"actifs": a, "non_act": na, "non_noe": nn, "taux": _taux(a, na, nn)}
 
-    tot = {
-        "Total":            bloc(rows),
-        "Total Collectif":  bloc([r for r in rows if indcol.get(r["libcrt"]) == "C"]),
-        "Total Individuel": bloc([r for r in rows if indcol.get(r["libcrt"]) == "I"]),
+    return {
+        "Total":            bloc(groupes),
+        "Total Collectif":  bloc([g for g in groupes if g["indcol"] == "C"]),
+        "Total Individuel": bloc([g for g in groupes if g["indcol"] == "I"]),
     }
 
-    # Contrôle : Total doit valoir Collectif + Individuel. Un écart signale un
-    # libcrt sans rattachement I/C — invisible sur le taux affiché à 2 décimales,
-    # d'où l'alerte explicite.
-    sans_rattachement = [r["libcrt"] for r in rows
-                         if indcol.get(r["libcrt"]) not in ("C", "I")]
-    if sans_rattachement:
-        print(f"  [WARN]    {len(sans_rattachement)} libcrt sans 'Individuel ou "
-              f"Collectif' : {sans_rattachement}\n"
-              f"            → Comptés dans le Total mais ni en C ni en I.")
-    for cle in ("actifs", "non_act", "non_noe"):
-        ecart = tot["Total"][cle] - (tot["Total Collectif"][cle]
-                                     + tot["Total Individuel"][cle])
-        if abs(ecart) > 1e-6:
-            print(f"  [WARN]    Incohérence '{cle}' : Total "
-                  f"({tot['Total'][cle]:,.0f}) != Collectif + Individuel "
-                  f"({tot['Total Collectif'][cle] + tot['Total Individuel'][cle]:,.0f}) "
-                  f"— écart {ecart:+,.0f}".replace(",", " "))
-    return tot
+# ─── ÉCRITURE DE LA FEUILLE ───────────────────────────────────────────────────
 
-# ─── PHASE 1 : COMPLÉTION DE LA FEUILLE SOURCE ────────────────────────────────
-
-def ensure_output_columns(ws, header_row: int, cols: Dict[str, int]) -> Dict[str, int]:
-    """Garantit la présence des colonnes du bloc vert ; les crée à la suite
-    de la dernière colonne renseignée si elles manquent."""
-    next_col = max(cols.values()) + 1 if cols else 1
-    for libelle, key in OUTPUT_HEADERS:
-        if key in cols:
-            continue
-        cell = ws.cell(row=header_row, column=next_col, value=libelle)
-        cell.fill = _HEADER_FILL
-        cell.font = _HEADER_FONT
-        cell.alignment = _CENTER
-        cols[key] = next_col
-        next_col += 1
-    return cols
-
-
-def write_phase1(ws, header_row: int, cols: Dict[str, int], rows: List[dict],
-                 groupes: Dict[str, dict], indcol: Dict[str, str],
-                 tot: Dict[str, dict]) -> int:
-    """Écrit le bloc vert sur chaque ligne + les 3 lignes de totaux.
-
-    Convention reprise du fichier de Laurence : les colonnes agrégées ne sont
-    renseignées que sur la ligne porteuse d'un regroupement multi-offres ; une
-    offre isolée conserve son seul taux ligne à ligne.
-    """
-    def put(r: int, key: str, value, fmt: Optional[str] = None, center=True):
-        cell = ws.cell(row=r, column=cols[key], value=value)
-        cell.font = _DATA_FONT
-        cell.fill = _GROUP_FILL
-        cell.alignment = _CENTER if center else _LEFT
-        if fmt:
-            cell.number_format = fmt
-        return cell
-
-    for data in rows:
-        r = data["row"]
-        g = groupes.get(data["libcrt"])
-        put(r, COL_INDCOL, indcol.get(data["libcrt"], ""))
-        if g is None:
-            continue                        # ligne membre : agrégée chez sa porteuse
-        if len(g["membres"]) > 1:
-            put(r, COL_ACTIFS2, g["actifs"],  FMT_INT)
-            put(r, COL_NONACT2, g["non_act"], FMT_INT)
-            put(r, COL_NONNOE2, g["non_noe"], FMT_INT)
-        put(r, COL_TAUX,   g["taux"], FMT_PCT)
-        put(r, COL_OFFRES, g["label"], center=False)
-        if g["ordre"] is not None:
-            put(r, COL_ORDRE, g["ordre"])
-
-    # ── Lignes de totaux, juste sous le bloc de données ──────────────────────
-    first_total = (rows[-1]["row"] + 1) if rows else header_row + 1
-    for i, libelle in enumerate(["Total", "Total Collectif", "Total Individuel"]):
-        r, t = first_total + i, tot[libelle]
-        grand = (libelle == "Total")
-        fill  = _GRAND_FILL if grand else _TOTAL_FILL
-        font  = _GRAND_FONT if grand else _TOTAL_FONT
-        valeurs = [(cols[COL_LIBCRT], libelle,      None),
-                   (cols[COL_ACTIFS], t["actifs"],  FMT_INT),
-                   (cols[COL_NONACT], t["non_act"], FMT_INT),
-                   (cols[COL_NONNOE], t["non_noe"], FMT_INT)]
-        if COL_PCTACT in cols:
-            valeurs.append((cols[COL_PCTACT], t["taux"], FMT_PCT))
-        for col, value, fmt in valeurs:
-            cell = ws.cell(row=r, column=col, value=value)
-            cell.font, cell.fill = font, fill
-            cell.alignment = _LEFT if col == cols[COL_LIBCRT] else _CENTER
-            if fmt:
-                cell.number_format = fmt
-    return first_total
-
-# ─── PHASE 2 : FEUILLE RÉCAPITULATIVE ─────────────────────────────────────────
-
-def write_recap(wb, groupes: Dict[str, dict], tot: Dict[str, dict]) -> None:
+def write_recap(wb, groupes: List[dict], tot: Dict[str, dict]) -> None:
     """Feuille 'Taux_Noémisation' — une ligne par client/offre consolidé.
 
     Structure calquée sur Feuil7 du TCD : ordre d'affichage, libellé du
@@ -467,9 +331,8 @@ def write_recap(wb, groupes: Dict[str, dict], tot: Dict[str, dict]) -> None:
         cell = ws.cell(row=1, column=i, value=libelle)
         cell.fill, cell.font, cell.alignment = _HEADER_FILL, _HEADER_FONT, _CENTER
 
-    ordonnes = sorted(groupes.items(), key=lambda kv: _tri_key(*kv))
-    for i, (_porteur, g) in enumerate(ordonnes, start=2):
-        valeurs = [(1, g["ordre"], None), (2, g["label"], None),
+    for i, g in enumerate(groupes, start=2):
+        valeurs = [(1, g["ordre"], None), (2, g["libelle"], None),
                    (3, g["actifs"], FMT_INT), (4, g["non_act"], FMT_INT),
                    (5, g["non_noe"], FMT_INT), (6, g["taux"], FMT_PCT),
                    (7, g["indcol"], None)]
@@ -480,9 +343,8 @@ def write_recap(wb, groupes: Dict[str, dict], tot: Dict[str, dict]) -> None:
             if fmt:
                 cell.number_format = fmt
 
-    # Totaux : ce sont les 3 indicateurs remontés au dashboard, donc présents
-    # ici même s'ils figurent déjà en bas de la feuille source.
-    start = len(ordonnes) + 3
+    # Totaux : ce sont les 3 indicateurs remontés au dashboard.
+    start = len(groupes) + 3
     for i, libelle in enumerate(["Total", "Total Collectif", "Total Individuel"]):
         r, t  = start + i, tot[libelle]
         grand = (libelle == "Total")
@@ -499,30 +361,11 @@ def write_recap(wb, groupes: Dict[str, dict], tot: Dict[str, dict]) -> None:
                 cell.number_format = fmt
 
     ws.freeze_panes = "A2"
-    for i, _ in enumerate(entetes, start=1):
+    for i in range(1, len(entetes) + 1):
         largeur = max((len(str(ws.cell(row=r, column=i).value or ""))
                        for r in range(1, ws.max_row + 1)), default=10)
         ws.column_dimensions[get_column_letter(i)].width = min(max(largeur + 2, 10), 60)
-    print(f"  [RECAP]   {len(ordonnes)} clients/offres consolidés")
-
-
-def dump_config(groupes: Dict[str, dict], indcol: Dict[str, str]) -> None:
-    """Affiche le mapping au format config, à recopier dans NOEMIE_GROUPES /
-    NOEMIE_MEMBRES pour traiter ensuite des extractions brutes (colonnes A–E)."""
-    # Console Windows en cp1252 : pas de caractère semi-graphique dans les print.
-    print("\n" + "-" * 60)
-    print("[CONFIG]  Mapping figé — à recopier dans ce script si les prochaines")
-    print("          extractions arrivent sans le bloc vert :\n")
-    print("NOEMIE_GROUPES = {")
-    for porteur, g in sorted(groupes.items(), key=lambda kv: _tri_key(*kv)):
-        print(f'    {porteur!r}: ({g["ordre"]}, {g["label"]!r}, {g["indcol"]!r}),')
-    print("}\n")
-    print("NOEMIE_MEMBRES = {")
-    for lib, ic in sorted(indcol.items()):
-        if lib not in groupes:
-            print(f"    {lib!r}: {ic!r},")
-    print("}")
-    print("-" * 60)
+    print(f"  [RECAP]   {len(groupes)} clients/offres consolidés")
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
@@ -553,17 +396,14 @@ def process(input_file: Path) -> Path:
     rows = read_data_rows(ws, header_row, cols)
     print(f"[PARSER]  {len(rows)} libcrt lus")
 
-    print("\n[GROUPES] Construction des regroupements client/offre...")
-    groupes, indcol = build_groupes(rows)
-    groupes = agreger(groupes, rows)
-    tot = totaux(rows, indcol)
+    print("\n[CHECK]   Contrôle de couverture config / extraction...")
+    controler_couverture(rows)
 
-    print("\n[PHASE 1] Complétion de la feuille source...")
-    cols = ensure_output_columns(ws, header_row, cols)
-    first_total = write_phase1(ws, header_row, cols, rows, groupes, indcol, tot)
-    print(f"  [OK]      Bloc vert écrit + totaux lignes {first_total}–{first_total + 2}")
+    print("\n[CALCUL]  Consolidation par client/offre...")
+    groupes = consolider(rows)
+    tot = totaux(groupes)
 
-    print("\n[PHASE 2] Génération de la feuille récapitulative...")
+    print("\n[FEUILLE] Génération du récapitulatif...")
     write_recap(wb, groupes, tot)
 
     wb.save(output_file)
@@ -574,11 +414,12 @@ def process(input_file: Path) -> Path:
         t = tot[libelle]
         pct = f"{t['taux']:.2%}" if t["taux"] is not None else "n/a"
         print(f"  {libelle:<18} {pct:>8}   "
-              f"(actifs {int(t['actifs']):,} / non actifs {int(t['non_act']):,} "
-              f"/ non noémisables {int(t['non_noe']):,})".replace(",", " "))
+              f"(actifs {_fmt_int(t['actifs'])} / "
+              f"non actifs {_fmt_int(t['non_act'])} / "
+              f"non noémisables {_fmt_int(t['non_noe'])})")
 
-    dump_config(groupes, indcol)
-    print(f"\n[DONE]    {output_file.name} sauvegardé.")
+    print(f"\n[DONE]    {output_file.name} sauvegardé "
+          f"(feuille '{RECAP_SHEET}' ajoutée).")
     return output_file
 
 
