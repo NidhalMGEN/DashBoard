@@ -1,0 +1,4 @@
+﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+14002490;coriou;daniel;CONJOI;1973-11-21;;KPEP00001119600927;MESMEN001;2026-05-17;2026-06-01;010;N;;;Type assuré non éligible (CONJOI);OK;20052026;;KPEP00001119600927
+13999046;Dehoest;Julie;CONJOI;1996-09-10;;KPEP00001119636909;MESMEN001;2026-05-17;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;20052026;;KPEP00001119636909
+14000957;wadoux;hélène;CONJOI;1978-10-30;;KPEP00001119641109;MESMEN001;2026-05-17;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;20052026;;KPEP00001119641109

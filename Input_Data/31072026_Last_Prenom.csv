@@ -1,0 +1,4 @@
+"id","realm_id","idkpep","email","email_other","channel","first_name","last_name","middlename","phonenumber","birthdate","type","origincreation","client","date_evt","heure_evt"
+"b5d31f09-4b1c-4e93-99b3-4521f5e6bbfd","010","KPEP00000824648234","judithrousseau1@icloud.com","","","Judith","ROUSSEAU","","","2006-01-25","LOGIN","MIGRATION","mgen-mobileg-app-oidc","2026-03-22","17:17:15"
+"1a256bf3-8dd6-45e1-abc8-11919441531e","010","KPEP00000331304038","rousseau@ceremade.dauphine.fr","","","JUDITH","ROUSSEAU","ROUSSEAU","+33662206231","1970-05-28","LOGIN","MIGRATION","mgen-ep-app-oidc","2026-05-14","14:28:27"
+"2f654b1d-7a5d-46da-a69c-e2cdc3fad46d","010","KPEP00000418240806","lefrancois.marie-christine@sfr.fr","","","Marie Christine","MEYER","LEFRANCOIS","+33615556122","1955-12-31","CREATION","MIGRATION",NULL,"2025-06-28","08:27:00"

@@ -1,0 +1,205 @@
+{
+    "Fichier_Principal": "31072026_New_S.csv",
+    "Prefixe_Execution": "31072026",
+    "Metadata": {
+        "Date_Execution": "2026-08-13 12:01:45",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "7_Carte_TP": {
+        "definition": "Indicateurs relatifs à la carte Tiers Payant : éligibilité globale, détail par société/offre/type, indicateurs opérationnels enrichis et contrôle GED quotidien.",
+        "Eligibilite_Globale": {
+            "definition": "Éligibilité carte Tiers Payant. Périmètre : assurés ASSPRI/MPACTI/MPRETR/MPVRET, hors offres PREV (préfixe MEP/IND) et hors société 073. Règle : delta = date_effet_adhesion - date_adhesion. ELIGIBLE si delta < 22j (valeurs négatives comprises). FUTURE si delta >= 22j.",
+            "Population_Base": 1035,
+            "Population_Eligible": {
+                "Nombre": 708,
+                "Taux": 68.41
+            },
+            "Population_Future": {
+                "Nombre": 327,
+                "Taux": 31.59
+            },
+            "Eligible_Par_Mois": {
+                "2016-01": 1,
+                "2026-01": 2,
+                "2026-03": 2,
+                "2026-04": 6,
+                "2026-05": 195,
+                "2026-06": 36,
+                "2026-07": 159,
+                "2026-08": 318,
+                "2026-09": 297,
+                "2026-10": 11,
+                "2026-11": 8
+            }
+        },
+        "Detail_Par_Type": {
+            "definition": "Détail éligibilité TP par (code société | offre | type assuré).",
+            "Non_Eligibles": 0,
+            "Detail_Par_Type": {
+                "010 | INMMISPACT | ASSPRI": {
+                    "cartes_tp": 2,
+                    "future_tp": 0
+                },
+                "010 | INMMISPRET | ASSPRI": {
+                    "cartes_tp": 3,
+                    "future_tp": 0
+                },
+                "010 | INMMSPACT1 | MPACTI": {
+                    "cartes_tp": 3,
+                    "future_tp": 0
+                },
+                "010 | INMMSPOJI1 | ASSPRI": {
+                    "cartes_tp": 37,
+                    "future_tp": 0
+                },
+                "010 | INMMSPRET1 | ASSPRI": {
+                    "cartes_tp": 20,
+                    "future_tp": 0
+                },
+                "010 | INSC2SG | ASSPRI": {
+                    "cartes_tp": 37,
+                    "future_tp": 7
+                },
+                "010 | INSC2SP | ASSPRI": {
+                    "cartes_tp": 12,
+                    "future_tp": 13
+                },
+                "010 | INSEFFICIE | ASSPRI": {
+                    "cartes_tp": 46,
+                    "future_tp": 0
+                },
+                "010 | INSMTE0001 | ASSPRI": {
+                    "cartes_tp": 1,
+                    "future_tp": 0
+                },
+                "010 | MESCULT002 | ASSPRI": {
+                    "cartes_tp": 4,
+                    "future_tp": 0
+                },
+                "010 | MESMEN001 | ASSPRI": {
+                    "cartes_tp": 531,
+                    "future_tp": 291
+                },
+                "010 | MESMEN2003 | ASSPRI": {
+                    "cartes_tp": 1,
+                    "future_tp": 2
+                },
+                "010 | MESMEN3001 | ASSPRI": {
+                    "cartes_tp": 1,
+                    "future_tp": 0
+                },
+                "044 | MESMEAE102 | ASSPRI": {
+                    "cartes_tp": 2,
+                    "future_tp": 6
+                },
+                "044 | MESMEAE202 | ASSPRI": {
+                    "cartes_tp": 2,
+                    "future_tp": 7
+                },
+                "052 | MESLAD46 | ASSPRI": {
+                    "cartes_tp": 6,
+                    "future_tp": 0
+                },
+                "052 | MESMUTFR31 | ASSPRI": {
+                    "cartes_tp": 0,
+                    "future_tp": 1
+                }
+            }
+        },
+        "TP_Enrichi_Operationnel": {
+            "definition": "Analyses complémentaires sur l'éligibilité TP. C1 — Éligibles TP non rapprochés CIAM (impact opérationnel immédiat). C2 — Délai avant éligibilité (FUTURE_TP) : distribution par tranches. C3 — Répartition des statuts TP par société.",
+            "C1_Eligibles_TP_Non_Rapproches": {
+                "definition": "Assurés classés ELIGIBLE_TP (carte TP déjà acquise) qui ne sont pas encore rapprochés dans CIAM.",
+                "Nb_Eligibles_TP": 708,
+                "Nb_Non_Rapproches_CIAM": 26,
+                "Eligibles_TP_Non_Rapproches": {
+                    "Nombre": 25,
+                    "Pct_Sur_Eligibles": 3.53
+                }
+            },
+            "C2_Delai_Futur_TP": {
+                "definition": "Délai (en jours) entre date_adhesion et date_effet pour les FUTURE_TP (delta = date_effet - date_adhesion >= 22j).",
+                "Population_Future_TP": 327,
+                "Delai_Moyen_Jours": 34.4,
+                "Delai_Median_Jours": 32,
+                "Delai_Min_Jours": 22,
+                "Delai_Max_Jours": 93,
+                "Distribution": {
+                    "0_30j": 8,
+                    "31_60j": 300,
+                    "61_90j": 11,
+                    "91_180j": 8,
+                    "plus_180j": 0
+                }
+            },
+            "C3_Repartition_TP_Par_Societe": {
+                "definition": "Répartition des statuts TP (ELIGIBLE_TP / FUTURE_TP) par code société (hors PREV et société 073).",
+                "Resultats": {
+                    "010": {
+                        "ELIGIBLE_TP": 698,
+                        "FUTURE_TP": 313
+                    },
+                    "044": {
+                        "ELIGIBLE_TP": 4,
+                        "FUTURE_TP": 13
+                    },
+                    "052": {
+                        "ELIGIBLE_TP": 6,
+                        "FUTURE_TP": 1
+                    }
+                }
+            }
+        },
+        "Controle_GED_Quotidien": {
+            "status": "Absent",
+            "definition": "Contrôle journalier des cartes TP en GED. Fichier détail non trouvé : l'étape 07_controle_tp_ged.py n'a probablement pas été lancée pour ce préfixe.",
+            "Fichier_Detail_Attendu": "31072026_TP_GED_Detail.csv",
+            "Population_Eligible": 0,
+            "Trouves_GED": {
+                "Nombre": 0,
+                "Taux": 0.0
+            },
+            "Non_Trouves_GED": {
+                "Nombre": 0,
+                "Taux": 0.0
+            },
+            "Corrections_Manuelles": {
+                "Nombre": 0,
+                "Taux": 0.0
+            },
+            "Statut_Final": {
+                "Rapproche": 0,
+                "Non_Rapproche": 0,
+                "Taux_Rapprochement_Final": 0.0
+            },
+            "Par_Societe": {}
+        },
+        "Delais_GED": {},
+        "Annexe": {
+            "I1b_Future_TP_Delai_Restant": {
+                "definition": "Assurés FUTURE_TP dont la date d'éligibilité TP est à plus de X jours d'aujourd'hui (délai restant calculé depuis la date d'exécution du script).",
+                "Base_Future_TP": 327,
+                "Futur_GT_30j": {
+                    "Nombre": 19,
+                    "Pct": 5.81
+                },
+                "Futur_GT_60j": {
+                    "Nombre": 8,
+                    "Pct": 2.45
+                },
+                "Futur_GT_90j": {
+                    "Nombre": 0,
+                    "Pct": 0.0
+                }
+            },
+            "I1c_Eligibles_TP_Sans_Email_CIAM": {
+                "definition": "Assurés ELIGIBLE_TP (carte TP déjà acquise) sans email CIAM valide : non rapprochés dans CIAM OU email du compte CIAM vide/invalide. Ces personnes ne peuvent pas être notifiées par email.",
+                "Base_Eligibles_TP": 708,
+                "Sans_Email_CIAM_Valide": {
+                    "Nombre": 36,
+                    "Pct": 5.08
+                }
+            }
+        }
+    }
+}

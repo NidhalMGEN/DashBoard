@@ -24,31 +24,61 @@ class Step:
     label:       str
     script:      str | None
     conditional: bool = False
+    # Dossier du script, relatif à la racine du projet. None = SCRIPTS_DIR_NAME
+    # du runner. Permet à une étape d'un pipeline de pointer vers un autre
+    # dossier (les étapes TP GED vivent dans scriptsNewPipline/).
+    scripts_dir: str | None = None
     status:      StepStatus = field(default=StepStatus.PENDING, init=False)
 
 
 class PipelineRunner:
     # Séquence identique à ETL_vf.bat (référence production) :
     # TCD(05) → IEHE(01) → [PAUSE RELIQUAT] → Detail(03) → Retry(06) → GED(07) → KPI(02) → BDD(04)
+    #
+    # Étapes TP GED : elles pointent vers scriptsNewPipline/, la version qui
+    # alimente la table de suivi rptpsc.suivi_tp_ged (lue par la courbe
+    # « Résorption TP GED » du dashboard). Les anciens Scripts/07 et Scripts/08
+    # restent sur disque mais ne sont plus appelés.
+    #
+    # Leurs ids sont volontairement tp_ged_* et non ged/ged_retry : _build_env
+    # injecte les identifiants IEHE par id d'étape, or ces scripts attaquent la
+    # base de supervision avec leur propre compte (cf. _build_env).
     STEPS = [
         Step("tcd",    "TCD Accolade",   "05_generation_tcd.py",             conditional=True),
         Step("iehe",   "IEHE + SQL",      "01_generation_donnees.py"),
         Step("detail", "Fichiers détail", "03_generation_fichiers_detail.py"),
         Step("retry",  "Retry IEHE KO",   "06_iehe_retry.py"),
-        Step("ged",    "Contrôle GED",    "07_controle_tp_ged.py",            conditional=True),
-        Step("ged_retry", "Retry TP GED KO", "08_tp_ged_retry.py"),
+        Step("tp_ged_controle", "Contrôle TP GED",  "07_controle_tp_ged.py",
+             scripts_dir="scriptsNewPipline"),
+        Step("tp_ged_retry",    "Retry TP GED KO",  "08_ged_retry.py",
+             scripts_dir="scriptsNewPipline"),
         Step("kpi",    "Calcul KPI",      "02_calcul_kpi.py"),
         Step("bdd",    "Chargement BDD",  "04_chargement_bdd.py"),
+        Step("noemie", "Taux de noémisation", "09_taux_noemisation.py",      conditional=True),
     ]
 
     # Triggers conditionnels — globs exacts repris de ETL_vf.bat
+    #
+    # Pas de trigger pour tp_ged_controle : contrairement à l'ancien Scripts/07,
+    # le script génère d'abord les requêtes SQL puis se met EN PAUSE le temps
+    # que l'on dépose le CSV GED. Exiger le CSV en amont ferait sauter l'étape
+    # à presque tous les runs.
     TRIGGER_GLOBS = {
         "tcd": ["*_Accolade - KPI*.xlsx", "*Accolade*KPI*.xlsx"],
-        "ged": ["*_TP_GED.csv", "*TP_GED*.csv"],
+        # Un seul glob couvre Noemie/Noémie et le séparateur espace tolérés par
+        # NOEMIE_FILENAME_RE (Scripts/09_taux_noemisation.py).
+        "noemie": ["*Taux*No*mie*.xlsx"],
     }
 
     # Dossier des scripts exécutés par les étapes (surchargeable par sous-classe).
     SCRIPTS_DIR_NAME = "Scripts"
+
+    # Étapes exclues des runs planifiés (unattended). Les scripts TP GED
+    # s'arrêtent pour que l'on dépose un CSV ; sans opérateur, _trigger_pause
+    # répond \n automatiquement et le script poursuivrait SANS le fichier,
+    # écrivant des lignes fausses dans rptpsc.suivi_tp_ged. Mieux vaut ne pas
+    # les lancer du tout et les jouer à la main.
+    UNATTENDED_SKIP = {"tp_ged_controle", "tp_ged_retry"}
 
     # Prompt input() du script 01 (ligne 365) → vraie pause IHM, on attend l'utilisateur.
     # Marqueur discriminant placé en FIN de prompt (les deux prompts partagent le
@@ -57,9 +87,49 @@ class PipelineRunner:
     PAUSE_ID = "cm_ck"
     PAUSE_MESSAGE = "Déposez CM.csv et CK.csv dans Input_Data/ puis cliquez « Continuer »"
 
+    # Pauses SUPPLÉMENTAIRES — (marqueur, pause_id, message).
+    # Un pipeline qui enchaîne des scripts d'origines différentes rencontre
+    # plusieurs prompts input() distincts : un marqueur unique ne suffit plus.
+    # Le prompt non reconnu ne serait jamais détecté et le subprocess resterait
+    # bloqué indéfiniment sur son input() (gel de l'étape).
+    # Les sous-classes qui ne pilotent qu'un seul script gardent la voie simple
+    # (surcharge de PAUSE_PROMPT_MARKER) — cf. modules/pipeline_ged/runner.py.
+    EXTRA_PAUSES: list[tuple[str, str, str]] = [
+        # Prompt input() des scripts scriptsNewPipline/07 et 08 : « Appuyez sur
+        # Entrée une fois le fichier ... {PREFIX}_TP_GED[_RETRY].csv ».
+        # Le marqueur s'arrête à la partie STABLE des deux prompts, dont les
+        # formulations divergent (07 : « ... déposé — il doit s'appeler »,
+        # 08 : « ... est mis le fichier doit s'appeler »). Il ne collisionne pas
+        # avec le prompt du script 01, qui dit « une fois LES FICHIERS CM et CK ».
+        # Message générique : le nom exact du fichier attendu figure dans les logs.
+        ("Appuyez sur Entrée une fois le fichier", "ged_csv",
+         "Exécutez les requêtes SQL générées dans Output/ sur la GED, déposez le "
+         "CSV résultat dans Input_Data/ (nom exact affiché dans les logs) puis "
+         "cliquez « Continuer »"),
+    ]
+
+    @classmethod
+    def _pause_rules(cls) -> list[tuple[str, str, str]]:
+        """Règles de pause, marqueur par défaut en tête."""
+        return [(cls.PAUSE_PROMPT_MARKER, cls.PAUSE_ID, cls.PAUSE_MESSAGE),
+                *cls.EXTRA_PAUSES]
+
     # Prompts terminaux « Appuyez sur Entrée pour quitter » (lignes 460/467/475/488
     # du script 01) → on répond automatiquement \n pour ne pas bloquer le subprocess.
     AUTOANSWER_MARKER = "pour quitter"
+
+    # Filet de sécurité. Un prompt input() reformulé dans un script cesse d'être
+    # reconnu par les marqueurs ci-dessus : l'étape gèle alors sans aucun
+    # message dans l'IHM (le subprocess attend sur stdin, le runner attend sur
+    # stdout). Plutôt que ce blocage muet, tout prompt contenant encore
+    # « Appuyez sur Entrée » déclenche une pause générique : l'opérateur voit le
+    # texte réel du prompt dans les logs et débloque avec « Continuer ».
+    # Testé APRÈS AUTOANSWER_MARKER, sinon il capturerait les « pour quitter ».
+    PAUSE_FALLBACK_MARKER = "Appuyez sur Entrée"
+    PAUSE_FALLBACK_ID = "prompt_script"
+    PAUSE_FALLBACK_MESSAGE = ("Le script attend une action de votre part "
+                              "(voir le prompt ci-dessus dans les logs) puis "
+                              "cliquez « Continuer »")
 
     # Métadonnées exposées à l'IHM (sélecteur de scripts du Module 01).
     # Durées estimées indicatives (secondes) + dépendances inter-étapes.
@@ -69,10 +139,16 @@ class PipelineRunner:
         "iehe":   {"duration_est": 180, "deps": [],                 "desc": "Génération données + requêtes SQL IEHE"},
         "detail": {"duration_est": 120, "deps": ["iehe"],           "desc": "Fichiers détail par segment"},
         "retry":  {"duration_est": 90,  "deps": ["iehe"],           "desc": "Retry des IEHE en KO"},
-        "ged":    {"duration_est": 120, "deps": [],                 "desc": "Contrôle TP / GED (conditionnel)"},
-        "ged_retry": {"duration_est": 90, "deps": ["ged"],          "desc": "Retry des TP GED en KO (re-vérif IEHE puis GED)"},
+        "tp_ged_controle": {"duration_est": 120, "deps": [],
+                            "desc": "Contrôle journalier TP GED : génération des SQL, "
+                                    "pause dépôt du CSV GED, enregistrement en BDD suivi"},
+        "tp_ged_retry":    {"duration_est": 120, "deps": ["tp_ged_controle"],
+                            "desc": "Relance les KPEP GED non trouvés (BDD suivi) : génération "
+                                    "des SQL, pause dépôt du CSV résultat, mise à jour BDD"},
         "kpi":    {"duration_est": 120, "deps": ["iehe", "detail"], "desc": "Calcul des KPI (Modele_clean.json)"},
         "bdd":    {"duration_est": 300, "deps": ["kpi"],            "desc": "Chargement / historisation BDD"},
+        "noemie": {"duration_est": 30,  "deps": [],
+                   "desc": "Taux de noémisation par client/offre (fichier mensuel, conditionnel)"},
     }
 
     @classmethod
@@ -141,11 +217,16 @@ class PipelineRunner:
         scripts_dir = str(self.base_dir / "Scripts")
         existing = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = scripts_dir + os.pathsep + existing if existing else scripts_dir
-        if step.id in ("iehe", "retry", "ged_retry"):
+        if step.id in ("iehe", "retry"):
             env["PG_USER"]     = self.pg_user
             env["PG_PASSWORD"] = self.pg_password
         # Script 04 (bdd) : NE PAS injecter PG_USER/PG_PASSWORD — credentials
         # d'historisation hardcodés dans le script (collision fatale sinon).
+        #
+        # Étapes tp_ged_* : même règle. Les scripts de scriptsNewPipline/ lisent
+        # PG_USER/PG_PASSWORD mais visent la base de supervision et retombent sur
+        # leur propre compte quand ces variables sont absentes. Leur injecter le
+        # login IEHE les ferait échouer à l'authentification.
         return env
 
     # ── Émission SSE ──────────────────────────────────────────────────
@@ -178,12 +259,12 @@ class PipelineRunner:
             return "ok"
         return "info"
 
-    # ── Pause CM/CK (déclenchée par le prompt input() du script 01) ───
-    def _trigger_pause(self, pause_id: str, proc):
+    # ── Pause IHM (déclenchée par un prompt input() d'un script) ──────
+    def _trigger_pause(self, pause_id: str, message: str, proc):
         if self.unattended:
             # Run planifié : on ne bloque pas, on répond directement au input().
-            self.emit_log("⏩ Pause CM/CK franchie automatiquement (mode planifié)",
-                          level="warn")
+            self.emit_log(f"⏩ Pause « {pause_id} » franchie automatiquement "
+                          "(mode planifié)", level="warn")
             try:
                 proc.stdin.write(b"\n")
                 proc.stdin.flush()
@@ -192,7 +273,7 @@ class PipelineRunner:
             return
         self._pause_event      = threading.Event()
         self._current_pause_id = pause_id
-        msg = self.PAUSE_MESSAGE
+        msg = message
         self._pause_message    = msg
         self.emit_pause(pause_id, msg)
         self.emit_log(f"⏸ PAUSE — {msg}", level="pause")
@@ -255,7 +336,8 @@ class PipelineRunner:
 
     # ── Exécution d'une étape ─────────────────────────────────────────
     def _run_step(self, step: Step) -> bool:
-        script_path = self.base_dir / self.SCRIPTS_DIR_NAME / step.script
+        script_dir  = step.scripts_dir or self.SCRIPTS_DIR_NAME
+        script_path = self.base_dir / script_dir / step.script
         if not script_path.exists():
             self.emit_log(f"❌ Script introuvable : {script_path}", level="error")
             return False
@@ -300,16 +382,25 @@ class PipelineRunner:
 
             # Détection des prompts input() (texte SANS \n final dans line_buf)
             if line_buf:
-                if self.PAUSE_PROMPT_MARKER in line_buf:
+                rule = next((r for r in self._pause_rules() if r[0] in line_buf), None)
+                if rule is not None:
+                    _, pause_id, pause_msg = rule
                     if line_buf.strip():
                         self.emit_log(line_buf.strip(), level="pause")
                     line_buf = ""
-                    self._trigger_pause(self.PAUSE_ID, proc)
+                    self._trigger_pause(pause_id, pause_msg, proc)
                 elif self.AUTOANSWER_MARKER in line_buf:
                     if line_buf.strip():
                         self.emit_log(line_buf.strip(), level="info")
                     line_buf = ""
                     self._autoanswer(proc)
+                elif self.PAUSE_FALLBACK_MARKER and self.PAUSE_FALLBACK_MARKER in line_buf:
+                    # Prompt non catalogué : pause générique plutôt que gel muet.
+                    if line_buf.strip():
+                        self.emit_log(line_buf.strip(), level="pause")
+                    line_buf = ""
+                    self._trigger_pause(self.PAUSE_FALLBACK_ID,
+                                        self.PAUSE_FALLBACK_MESSAGE, proc)
 
         # Vide le reliquat éventuel du buffer
         tail = (line_buf + decoder.decode(b"", final=True)).strip()
@@ -379,6 +470,17 @@ class PipelineRunner:
                     continue
 
                 self.emit_progress(int(done / total * 100))
+
+                # Étape à pause manuelle en run planifié : on ne la joue pas.
+                if self.unattended and step.id in self.UNATTENDED_SKIP:
+                    step.status = StepStatus.SKIP
+                    self.emit_step(step.id, "skip")
+                    self.emit_log(f"— {step.label} ignoré "
+                                  "(pause manuelle impossible en mode planifié)",
+                                  level="warn")
+                    done += 1
+                    ok_count += 1
+                    continue
 
                 # Pause RELIQUAT juste avant l'étape Détail (après IEHE)
                 if step.id == "detail":

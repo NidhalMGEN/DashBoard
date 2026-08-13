@@ -69,6 +69,11 @@ MODULES: list[ModuleSpec] = [
         import_path="modules.ticket_sam.routes", blueprint="bp",
         enabled=True,
     ),
+    ModuleSpec(
+        key="pipeline_ged", code="08", label="Pipeline GED", icon="📁",
+        import_path="modules.pipeline_ged.routes", blueprint="bp",
+        enabled=True,
+    ),
 ]
 
 

@@ -1,0 +1,416 @@
+{
+    "Fichier_Principal": "16042026_New_S.csv",
+    "Prefixe_Execution": "16042026",
+    "Metadata": {
+        "Date_Execution": "2026-07-07 10:15:49",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "6_IEHE": {
+        "definition": "Indicateurs relatifs au référentiel IEHE (iehe.refkpep) : présence, segmentation par type d'assuré et qualité du référentiel.",
+        "Presence_Globale": {
+            "definition": "Présence dans le référentiel IEHE. Population de référence = toutes personnes uniques du flux (assurés + conjoints), jointure sur num_personne = refperboccn.",
+            "Presents_IEHE": {
+                "Nombre": 43279,
+                "Taux": 100.0
+            },
+            "Manquants_IEHE": {
+                "Nombre": 1,
+                "Taux": 0.0,
+                "dont_Assures": 1,
+                "dont_Conjoints": 0
+            }
+        },
+        "Ecart_Lignes_vs_Personnes": {
+            "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques (KPI). Une même personne peut apparaître sur plusieurs contrats : le KPI dédoublonne par num_personne, le comptage par lignes ne dédoublonne pas. Le delta = nombre de contrats supplémentaires liés aux personnes multi-contrats.",
+            "Total_Flux": {
+                "Lignes": 43519,
+                "Personnes_Uniques": 43280,
+                "Delta_Doublons": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 43455,
+                        "Personnes_Uniques": 43216,
+                        "Delta_Doublons": 239,
+                        "Assures_Non_Crees_IEHE_Et_Eligibles_TP": 1,
+                        "Nb_Eligibles_Carte_TP": 11361
+                    },
+                    "CONJOI": {
+                        "Lignes": 63,
+                        "Personnes_Uniques": 63,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Manquants_IEHE": {
+                "Lignes": 1,
+                "Personnes_Uniques": 1,
+                "Delta_Doublons": 0,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "CONJOI": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    }
+                }
+            }
+        },
+        "Annexe": {
+            "Presents_IEHE": {
+                "Lignes": 43518,
+                "Personnes_Uniques": 43279,
+                "Delta_Doublons": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 43454,
+                        "Personnes_Uniques": 43215,
+                        "Delta_Doublons": 239
+                    },
+                    "CONJOI": {
+                        "Lignes": 63,
+                        "Personnes_Uniques": 63,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Doublons_Personnes_Multi_Contrats": {
+                "definition": "Personnes (num_personne) apparaissant sur plusieurs contrats dans le flux. Chaque contrat supplémentaire augmente le comptage-lignes sans augmenter le comptage-personnes.",
+                "Nombre_Personnes": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": 239
+                },
+                "Exemples_Top_5": [
+                    {
+                        "num_personne": "4512829",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "6063172",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "2909746",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "10768004",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "13071218",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    }
+                ]
+            },
+            "Retry_IEHE_KO": {
+                "Totaux": {
+                    "Total_KO_Initial": 1,
+                    "Resolus_Apres_Retry": 0,
+                    "Encore_KO": 1,
+                    "Taux_Resolution": 0.0,
+                    "Fichiers_Traites": 1
+                },
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 0,
+                        "Encore_KO": 1,
+                        "Taux_Resolution": 0.0
+                    }
+                },
+                "Par_Eligibilite_TP": {
+                    "Eligible_TP": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 0,
+                        "Encore_KO": 1,
+                        "Taux_Resolution": 0.0
+                    },
+                    "Future_TP": {
+                        "Total_KO_Initial": 0,
+                        "Resolus_Apres_Retry": 0,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 0.0
+                    },
+                    "Hors_Perimetre_TP": {
+                        "Total_KO_Initial": 0,
+                        "Resolus_Apres_Retry": 0,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 0.0
+                    }
+                },
+                "Detail_Par_Fichier": [
+                    {
+                        "Fichier": "16042026_IEHE_KO.csv",
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 0,
+                        "Taux_Resolution": 0.0,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "06072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 0.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            }
+                        }
+                    }
+                ]
+            },
+            "Detail_Par_Type_Assure": {
+                "definition": "Détail IEHE par type d'assuré et corrélations avec l'éligibilité TP.",
+                "Population_Ref_Par_Type_Assure": {
+                    "ASSPRI": 43216,
+                    "CONJOI": 63,
+                    "MPORHA": 1
+                },
+                "Presents_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 43215,
+                    "CONJOI": 63,
+                    "MPORHA": 1
+                },
+                "Manquants_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 1,
+                    "CONJOI": 0,
+                    "MPORHA": 0
+                },
+                "Correlation_TP_Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Presents_IEHE": {
+                            "TP_Valide": 11360,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 4
+                        },
+                        "Manquants_IEHE": {
+                            "TP_Valide": 1,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        }
+                    }
+                },
+                "Totaux_TP_Presents_IEHE": {
+                    "TP_Valide": 11360,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 4
+                },
+                "Totaux_TP_Manquants_IEHE": {
+                    "TP_Valide": 1,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 0
+                },
+                "Ecart_Lignes_vs_Personnes": {
+                    "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques pour les KPI de l'annexe IEHE. Mêmes principes que 6_IEHE.Ecart_Lignes_vs_Personnes : une personne peut avoir plusieurs contrats → +1 ligne par contrat supplémentaire.",
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP_Par_Type": {
+                        "ASSPRI": {
+                            "Lignes": 1,
+                            "Personnes_Uniques": 1,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Correlation_TP_Par_Type_Assure": {
+                        "ASSPRI": {
+                            "Presents_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 11410,
+                                    "Personnes_Uniques": 11360,
+                                    "Delta_Doublons": 50
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 4,
+                                    "Personnes_Uniques": 4,
+                                    "Delta_Doublons": 0
+                                }
+                            },
+                            "Manquants_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 1,
+                                    "Personnes_Uniques": 1,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            }
+                        }
+                    },
+                    "Totaux_TP_Presents_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 11410,
+                            "Personnes_Uniques": 11360,
+                            "Delta_Doublons": 50
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 4,
+                            "Personnes_Uniques": 4,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Totaux_TP_Manquants_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 1,
+                            "Personnes_Uniques": 1,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        }
+                    }
+                }
+            },
+            "Qualite_Referentiel": {
+                "definition": "Indicateurs de qualité du référentiel IEHE et de cohérence avec les autres sources. D1 — Complétude email IEHE (adrmailctc). D2 — Concordance email IEHE vs CIAM (rapprochés présents en IEHE). D3 — Concordance société IEHE vs New_S (socappr vs code_soc_appart).",
+                "D1_Completude_Email_IEHE": {
+                    "definition": "Présence de l'email de contact (adrmailctc) dans le référentiel IEHE.",
+                    "Population_IEHE": 43279,
+                    "Email_Rempli": {
+                        "Nombre": 43210,
+                        "Pct": 99.84
+                    },
+                    "Email_Vide": {
+                        "Nombre": 69,
+                        "Pct": 0.16
+                    }
+                },
+                "D2_Concordance_Email_IEHE_CIAM": {
+                    "definition": "Concordance entre l'email IEHE (adrmailctc) et l'email du compte CIAM matché, pour les assurés rapprochés présents dans IEHE.",
+                    "Base_Rapproches_Presents_IEHE": 43211,
+                    "Emails_Identiques": {
+                        "Nombre": 28826,
+                        "Pct": 66.71
+                    },
+                    "Emails_Differents": {
+                        "Nombre": 14308,
+                        "Pct": 33.11
+                    },
+                    "IEHE_Vide_CIAM_Present": {
+                        "Nombre": 6,
+                        "Pct": 0.01
+                    },
+                    "CIAM_Vide_IEHE_Present": {
+                        "Nombre": 69,
+                        "Pct": 0.16
+                    },
+                    "Deux_Vides": {
+                        "Nombre": 2,
+                        "Pct": 0.0
+                    }
+                },
+                "D3_Concordance_Societe_IEHE_NS": {
+                    "definition": "Concordance entre socappr (IEHE) et code_soc_appart (New_S), par personne (jointure sur refperboccn = num_personne).",
+                    "Base_Personnes_IEHE": 43279,
+                    "Societes_Identiques": {
+                        "Nombre": 43278,
+                        "Pct": 100.0
+                    },
+                    "Societes_Differentes": {
+                        "Nombre": 1,
+                        "Pct": 0.0
+                    },
+                    "IEHE_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "NS_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                },
+                "J1b_Potentiel_Enrichissement_CIAM": {
+                    "definition": "Parmi les rapprochés présents dans IEHE : email IEHE renseigné mais absent ou différent dans CIAM → potentiel d'enrichissement. = CIAM_Vide_IEHE_Present + Emails_Differents.",
+                    "Base": 43211,
+                    "Potentiel_Enrichissement": {
+                        "Nombre": 14377,
+                        "Pct": 33.27
+                    },
+                    "Dont_CIAM_Vide": {
+                        "Nombre": 69
+                    },
+                    "Dont_Email_Different": {
+                        "Nombre": 14308
+                    }
+                },
+                "J1c_Emails_IEHE_Invalides": {
+                    "definition": "Parmi les emails IEHE (adrmailctc) renseignés : emails au format invalide (ne respectant pas la syntaxe standard).",
+                    "Base_Emails_Remplis": 43210,
+                    "Emails_Invalides": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                }
+            }
+        }
+    }
+}

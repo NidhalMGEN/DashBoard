@@ -95,6 +95,15 @@ OUTPUT_DIR = BASE_DIR / "Output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# `pipeline_runner` ajoute déjà Scripts/ au PYTHONPATH ; ce complément couvre
+# le lancement manuel du script hors IHM.
+_SCRIPTS_DIR = str(BASE_DIR / "Scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+# Source de la relance : les cartes dues et toujours introuvables.
+import suivi_carte_tp_db
+
 # Types assurés éligibles carte TP (doit rester aligné avec 02_calcul_kpi / 03_generation_fichiers_detail)
 TYPES_TP = ["ASSPRI", "MPACTI", "MPRETR", "MPVRET"]
 
@@ -125,7 +134,8 @@ PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
 PG_USER     = os.environ.get("PG_USER", "rptpsc")
 PG_PASSWORD = os.environ.get("PG_PASSWORD", "rptpsc_xx")
 GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
-GED_TABLE  = "suivi_tp_ged"
+# `GED_TABLE = "suivi_tp_ged"` retiré : le retry n'écrit plus dans l'ancienne
+# table. Tout l'état des cartes vit dans `rptpsc.suivi_carte_tp`.
 # ----------------------------
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
@@ -702,40 +712,42 @@ def connect_GED_auto():
 
 
 def getNotFound():
+    """
+    Population de la relance : les cartes DUES et toujours introuvables.
+
+    Source = `rptpsc.suivi_carte_tp`, comme le script 07. L'ancienne source
+    (`suivi_tp_ged`) relançait tout ce qui n'avait pas été trouvé, sans regarder
+    la date d'éligibilité — donc aussi des cartes pas encore dues, qu'il était
+    normal de ne pas trouver. Elle ne connaissait pas non plus les personnes
+    absentes d'IEHE, qu'il faut au contraire ne PAS interroger (aucun KPEP).
+
+    Les trois conditions sont celles de `fetch_ged_pending()` :
+      date_eligibilite <= aujourd'hui, date_found_ged IS NULL, kpep_iehe non nul.
+    """
     conn = connect_GED_auto()
     if not conn:
         print("i cann't connect")
         sys.exit(1)
         return
 
-    cur = conn.cursor()
-    cur.execute( f"""
-        SELECT kpep, flux_id
-        FROM {GED_SCHEMA}.{GED_TABLE}
-        WHERE date_found IS NULL
-        """
-        )
-    rows = cur.fetchall()
-    kpeps = [row[0] for row in rows]
+    kpeps = suivi_carte_tp_db.fetch_ged_pending(conn)
 
-    # `flux_id` est un TEXT au format DDMMYYYY : un MIN() SQL trierait sur le
-    # jour avant le mois ('01082026' < '17072026' alors que le 17/07 précède
-    # le 01/08). On parse donc les préfixes côté Python pour trouver le flux
-    # réellement le plus ancien.
-    flux_dates: List[date] = []
-    for _, flux_id in rows:
-        try:
-            flux_dates.append(datetime.strptime(str(flux_id).strip(), "%d%m%Y").date())
-        except (ValueError, TypeError):
-            continue
-    flux_le_plus_ancien = min(flux_dates) if flux_dates else None
+    # Borne basse de la fenêtre tmstinj : la plus ancienne date d'éligibilité
+    # encore en attente. `date_premiere_vue` ne conviendrait pas — une carte
+    # rétroactive peut être due bien avant le flux qui l'a révélée.
+    #
+    # La requête vivait ici en dur ; elle est passée dans `suivi_carte_tp_db` parce
+    # que le script 07 en a désormais besoin lui aussi. Deux copies auraient
+    # divergé, et les deux scripts interrogeraient alors deux fenêtres différentes
+    # sur la même population.
+    flux_le_plus_ancien = suivi_carte_tp_db.fetch_min_eligibilite_pending(conn)
 
     if flux_le_plus_ancien is None:
         print("[INFO] Aucune carte en attente : fenêtre limitée à la journée courante.")
     else:
         print(
-            f"[INFO] {len(kpeps)} carte(s) en attente — flux le plus ancien : "
-            f"{flux_le_plus_ancien:%d/%m/%Y}"
+            f"[INFO] {len(kpeps)} carte(s) due(s) et introuvable(s) — éligibilité "
+            f"la plus ancienne : {flux_le_plus_ancien:%d/%m/%Y}"
         )
 
     debut_inclus, fin_inclus = compute_window_retry(flux_le_plus_ancien)
@@ -743,19 +755,15 @@ def getNotFound():
     formatted = date.today().strftime("%d%m%Y")
 
     write_ged_sql_batches(kpeps, OUTPUT_DIR, formatted, debut_inclus, fin_inclus)
+    # Commit sans écriture : clôt proprement la transaction implicite ouverte par
+    # les SELECT ci-dessus avant de rendre la connexion.
     conn.commit()
-    cur.close()
     conn.close()
     return formatted
 
     
-def SaveKpep(name, cur, formatted):
-    cur.execute(
-        f"""
-        UPDATE {GED_SCHEMA}.{GED_TABLE} SET date_found = %s WHERE kpep = %s AND date_found IS NULL
-        """,
-        (formatted,name)
-    )
+# `SaveKpep()` retirée : elle mettait à jour `rptpsc.suivi_tp_ged`, l'ANCIENNE
+# table. Le solde des cartes passe uniquement par `suivi_carte_tp_db.mark_ged_found`.
 
 
 def SaveToDB(prefix):
@@ -779,12 +787,18 @@ def SaveToDB(prefix):
         print("❌ GED — no KPEP column found.")
         return
 
-    kpeps = [str(n).strip() for n in df_GED[col_kpep] if str(n).strip()]
-    cur.execute(
-        f"""UPDATE {GED_SCHEMA}.{GED_TABLE} SET date_found = %s
-            WHERE kpep = ANY(%s) AND date_found IS NULL""",
-        (today, kpeps),
-    )
+    col_tms = get_col(df_GED, ["tmstinj", "date_injection", "date_dispo"])
+
+    # Table d'état : c'est elle qui porte le KPI des délais.
+    resultats = [
+        (str(r.get(col_kpep, "") or "").strip(),
+         (str(r.get(col_tms, "") or "").strip() or None) if col_tms else None)
+        for _, r in df_GED.iterrows()
+        if str(r.get(col_kpep, "") or "").strip()
+    ]
+    nb = suivi_carte_tp_db.mark_ged_found(conn, resultats, today)
+    print(f"   ✅ {len(resultats)} KPEP trouvé(s) → {nb} carte(s) soldée(s) "
+          f"dans {suivi_carte_tp_db.FQTN}")
 
     conn.commit()
     cur.close()

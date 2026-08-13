@@ -1,0 +1,5 @@
+﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+14997159;Hodebar;Francoise;ASSPRI;1965-06-30;francoise.hodebar@social.gouv.fr;KPEP00001102691121;MEPMAS001;2026-07-31;2026-08-01;073;N;;;Offre PREV exclue;KO;31072026;;
+14996504;MAIRE;PHILIPPE;ASSPRI;1962-07-01;philippe.maire@ac-rennes.fr;KPEP00001098515816;MESMEN001;2026-07-31;2026-08-01;010;O;21/08/2026;;;KO;31072026;;
+14998472;MAYAKAS;Freddy Parfait;CONJOI;1966-04-14;;;MESMEAE202;2026-07-31;2026-07-28;044;N;;;Type assuré non éligible (CONJOI);KO;31072026;;
+4333135;MONNIN;LUCAS;ASSPRI;1990-10-18;lucasmonnin@hotmail.fr;KPEP00001071206810;MESMEAE102;2026-07-31;2026-09-01;044;O;21/08/2026;Futur;;KO;31072026;;

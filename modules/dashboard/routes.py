@@ -151,6 +151,28 @@ def api_ged_timeline():
     return jsonify(queries.ged_ok_ko_timeline(request.args.get("flux") or None, days=days))
 
 
+@bp.route("/api/delais-ged-periodes")
+def api_delais_ged_periodes():
+    """Amplitude des dates d'éligibilité en base (bornes du sélecteur du bloc
+    « Délais de mise à disposition en GED »)."""
+    return jsonify(queries.delais_ged_periodes())
+
+
+@bp.route("/api/delais-ged")
+def api_delais_ged():
+    """Délais GED sur une période. `?debut=YYYY-MM-DD&fin=YYYY-MM-DD`.
+
+    Bornes INCLUSES ; une seule journée s'obtient avec `debut == fin`. Sans
+    paramètre : le mois courant. Recalculé en base à chaque appel — la table
+    évolue tous les jours (une carte trouvée ce matin change le taux), donc
+    figer le résultat afficherait une photo périmée.
+    """
+    return jsonify(queries.delais_ged(
+        debut=request.args.get("debut") or None,
+        fin=request.args.get("fin") or None,
+    ))
+
+
 @bp.route("/api/available-dates")
 def api_available_dates():
     base_dir = current_app.config["BASE_DIR"]

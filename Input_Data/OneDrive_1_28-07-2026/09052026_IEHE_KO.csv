@@ -1,0 +1,5 @@
+﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+13898567;DELAUNAY;MICKAÊL;CONJOI;1976-05-27;;;MESMEN001;2026-05-09;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00001119024012
+13897965;FELICITE;M ANGELE;ASSPRI;1975-04-11;ma.felicite@wanadoo.fr;KPEP00000313678212;INPPREVIND;2026-05-09;2026-05-01;010;N;;;Offre PREV exclue;OK;13052026;ma.felicite@wanadoo.fr;KPEP00000313678212
+13897160;GRONDIN;MICHELLE;CONJOI;1967-11-24;;KPEP00000164139737;MESMEN001;2026-05-09;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00000164139737
+13900296;PEARSON;Sophie;CONJOI;2001-01-01;;;MESMEN001;2026-05-09;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00001119006808

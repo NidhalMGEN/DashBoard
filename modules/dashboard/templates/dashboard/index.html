@@ -154,6 +154,35 @@
   </div>
 
   <div class="chart-card">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div class="section-title" style="margin:0">Délais de mise à disposition en GED</div>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Du</div>
+          <input type="date" id="dg-debut"></div>
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Au</div>
+          <input type="date" id="dg-fin"></div>
+        <button class="btn btn-primary" id="dg-go">Calculer</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn" data-dg-raccourci="flux">Flux exécuté</button>
+      <button class="btn" data-dg-raccourci="mois-courant">Ce mois</button>
+      <button class="btn" data-dg-raccourci="mois-dernier">Mois dernier</button>
+      <button class="btn" data-dg-raccourci="aujourdhui">Aujourd'hui</button>
+      <button class="btn" data-dg-raccourci="tout">Tout l'historique</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+      Par défaut, la période est la <strong>journée du dernier flux exécuté</strong> (son préfixe).
+      Population = cartes dont la <strong>date d'éligibilité</strong> tombe dans la période choisie,
+      bornes incluses, antériorité comprise. Pour une seule journée, mettre la même date des deux côtés.
+      La cohorte n'est jamais le flux : un flux du 16 juillet contient des cartes dues en juillet
+      <em>et</em> en septembre.
+      Le délai court de la <strong>date d'éligibilité</strong> au <strong>tmstinj</strong> de la GED.
+    </div>
+    <div class="table-wrap" id="dg-result"></div>
+  </div>
+
+  <div class="chart-card">
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px">
       <div class="section-title" style="margin:0" id="ged-title">Résorption TP GED — OK / KO par jour ouvré</div>
       <div style="margin-left:auto;display:flex;gap:12px;align-items:flex-end">
@@ -594,6 +623,183 @@ async function loadGedTimeline(){
 }
 document.getElementById("ged-days").addEventListener("change",loadGedTimeline);
 
+// ── Délais de mise à disposition en GED ──
+// Recalculé en base à chaque changement de période : la table évolue tous les
+// jours (une carte trouvée ce matin change le taux), donc réutiliser le JSON
+// figé du dernier run afficherait une photo périmée.
+// Composantes LOCALES, pas toISOString() : `new Date(y,m,1)` est construit en
+// heure locale, et toISOString() le convertit en UTC — à l'est de Greenwich le
+// 1er du mois à 00:00 devient le dernier jour du mois précédent à 22:00, et le
+// raccourci « Aujourd'hui » interrogeait la veille.
+const dgISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
+async function loadDelaisGedPeriodes(){
+  try{
+    const r=await fetch("{{ url_for('dashboard.api_delais_ged_periodes') }}");
+    const j=await r.json();
+    // Bornes du calendrier = amplitude réelle des données. Saisir une date hors
+    // de cette plage ne pourrait donner qu'un écran vide sans explication.
+    // La date du flux est incluse de force : elle est la valeur par défaut, et
+    // un défaut hors bornes s'afficherait comme une saisie invalide.
+    const fluxDate=(j.flux&&j.flux.date)||null;
+    const bmin=[j.min,fluxDate].filter(Boolean).sort()[0]||null;
+    const bmax=[j.max,fluxDate].filter(Boolean).sort().pop()||null;
+    ["dg-debut","dg-fin"].forEach(id=>{
+      const el=document.getElementById(id);
+      if(bmin) el.min=bmin;
+      if(bmax) el.max=bmax;
+    });
+    window.__dgMin=j.min; window.__dgMax=j.max;
+    window.__dgFlux=fluxDate; window.__dgFluxId=(j.flux&&j.flux.flux_id)||null;
+    if(!j.available){
+      document.getElementById("dg-result").innerHTML=
+        `<div class="alert alert-warn">${j.error||"Aucune donnée."}</div>`;
+      return;
+    }
+    // Défaut = la journée du flux exécuté. Repli sur le mois courant seulement
+    // si aucun flux n'est encore chargé en base.
+    dgRaccourci(fluxDate?"flux":"mois-courant");
+  }catch(e){
+    document.getElementById("dg-result").innerHTML=
+      '<div class="alert alert-warn">Chargement des périodes impossible.</div>';
+  }
+}
+
+function dgRaccourci(nom){
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth();
+  let d0,d1;
+  if(nom==="flux"){ // une seule journée : le préfixe du flux exécuté
+    const f=window.__dgFlux;
+    if(!f){ dgRaccourci("mois-courant"); return; }
+    document.getElementById("dg-debut").value=f;
+    document.getElementById("dg-fin").value=f;
+    loadDelaisGed(); return;
+  }
+  if(nom==="mois-courant"){ d0=new Date(y,m,1); d1=new Date(y,m+1,0); }
+  else if(nom==="mois-dernier"){ d0=new Date(y,m-1,1); d1=new Date(y,m,0); }
+  else if(nom==="aujourdhui"){ d0=d1=t; }
+  else { // tout l'historique : on s'en remet aux bornes réelles de la table
+    document.getElementById("dg-debut").value=window.__dgMin||"";
+    document.getElementById("dg-fin").value=window.__dgMax||"";
+    loadDelaisGed(); return;
+  }
+  document.getElementById("dg-debut").value=dgISO(d0);
+  document.getElementById("dg-fin").value=dgISO(d1);
+  loadDelaisGed();
+}
+document.querySelectorAll("[data-dg-raccourci]").forEach(b=>
+  b.addEventListener("click",()=>dgRaccourci(b.dataset.dgRaccourci)));
+
+async function loadDelaisGed(){
+  const box=document.getElementById("dg-result");
+  const debut=document.getElementById("dg-debut").value;
+  const fin=document.getElementById("dg-fin").value;
+  box.innerHTML='<div style="color:var(--text-dim)">Calcul…</div>';
+  try{
+    const q="debut="+encodeURIComponent(debut)+"&fin="+encodeURIComponent(fin);
+    const r=await fetch("{{ url_for('dashboard.api_delais_ged') }}?"+q);
+    const j=await r.json();
+    if(!j.available){
+      box.innerHTML=`<div class="alert alert-warn">${j.error||"Aucune donnée pour cette période."}</div>`;
+      return;
+    }
+    const s=j.stats;
+    const n=v=>(v==null?"—":Number(v).toLocaleString("fr-FR"));
+    // Dénominateur de TOUS les taux de la période. À 0 (période sans échéance,
+    // ou cohorte entièrement composée de cartes pas encore dues) le back-end
+    // renvoie des taux à 0.0 et non null : les afficher tels quels donnerait un
+    // « 0,00 % » rouge, lu comme un effondrement du taux contractuel alors
+    // qu'il n'y a simplement rien à mesurer. On neutralise donc taux ET couleur.
+    const due=Number(s.Population_Due||0);
+    const pct=b=>(due>0&&b&&b.Taux!=null)?`${b.Taux.toFixed(2)} %`:"—";
+    // Vert/rouge sur le seul indicateur contractuel : c'est celui qui déclenche
+    // les pénalités. Colorer les autres diluerait le signal.
+    const seuil=95.0, t4=(s.Dans_les_4_jours||{}).Taux;
+    const col=(due===0||t4==null)?"var(--text)":(t4>=seuil?"#6ab023":"#ef4444");
+    const d=s.Distribution_Delai||{};
+    const ligne=(lib,val,sub,style="")=>
+      `<tr><td style="text-align:left">${lib}${sub?`<div style="font-size:11px;color:var(--text-dim)">${sub}</div>`:""}</td>
+       <td style="text-align:right;${style}">${val}</td></tr>`;
+    const nb=b=>n((b||{}).Nombre);
+    const dim=t=>`<span style="color:var(--text-dim)">${t}</span>`;
+    const fr=s=>String(s||"").split("-").reverse().join("/");
+    const sep=t=>`<tr><td colspan="2" style="text-align:left;padding-top:14px;
+        font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+        color:var(--text-muted)">${t}</td></tr>`;
+    const f=s.Flux_Courant||{};
+    const fluxLib=f.Date_Flux?fr(f.Date_Flux):(f.Flux_Id||"—");
+    box.innerHTML=
+      // Cohorte vide : bandeau d'avertissement AU-DESSUS du tableau, qui reste
+      // affiché. Sans lui, une colonne de zéros ne se distingue pas d'un calcul
+      // cassé ; avec lui, les compteurs hors période restent lisibles.
+      (j.notice?`<div class="alert alert-warn" style="margin-bottom:10px">${j.notice}</div>`:"")+
+      `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+         Période <strong>${fr(s.Date_Debut)}${s.Date_Debut!==s.Date_Fin?" → "+fr(s.Date_Fin):""}</strong>
+         — ${s.Nb_Jours_Periode} jour(s) — seuil contractuel
+         ${s.Seuil_Contractuel_Jours} jours</div>
+       <table><thead><tr><th>Indicateur</th><th style="text-align:right">Valeur</th></tr></thead><tbody>`+
+
+      sep(`Flux exécuté — ${fluxLib}`)+
+      ligne("Cartes éligibles", n(f.Cartes_Eligibles),
+            "date d'éligibilité ≤ aujourd'hui — la carte est due")+
+      ligne("Cartes futures", n(f.Cartes_Futures),
+            "date d'éligibilité > aujourd'hui — dues plus tard, jamais remontrées par un flux suivant")+
+      ligne("<strong>Total du flux</strong>", `<strong>${n(f.Total_Cartes)}</strong>`,
+            "somme des deux lignes ci-dessus")+
+      (f.Sans_Date_Eligibilite
+        ? ligne("&nbsp;&nbsp;↳ sans date d'éligibilité", n(f.Sans_Date_Eligibilite),
+                "date d'effet absente ou illisible — hors des deux compteurs ci-dessus")
+        : "")+
+
+      sep("Population de la période")+
+      ligne("Cartes attendues", n(s.Population_Attendue), "date d'éligibilité dans la période")+
+      ligne("&nbsp;&nbsp;↳ issues du flux exécuté", n(s.Issues_Flux_Courant),
+            "révélées par le flux en cours")+
+      ligne("&nbsp;&nbsp;↳ issues des flux antérieurs", n(s.Issues_Flux_Anterieurs),
+            "antériorité — le New_S est un différentiel, il ne les remontre jamais")+
+      ligne("&nbsp;&nbsp;↳ pas encore échues", nb(s.Cartes_Futures),
+            "dues plus tard dans la période — ne peuvent pas être en retard")+
+      ligne("<strong>Cartes échues</strong>", `<strong>${n(s.Population_Due)}</strong>`,
+            "dénominateur de tous les taux ci-dessous")+
+
+      sep(`Engagement contractuel (${s.Seuil_Contractuel_Jours} jours)`)+
+      ligne("Le jour même <span style='opacity:.6'>(J = 0)</span>",
+            `${nb(s.Le_Jour_Meme)} &nbsp; ${dim(pct(s.Le_Jour_Meme))}`)+
+      ligne("<strong>Dans les 4 jours <span style='opacity:.6'>(J ≤ 4)</span></strong>",
+            `<strong>${nb(s.Dans_les_4_jours)} &nbsp; ${pct(s.Dans_les_4_jours)}</strong>`,
+            "chrono depuis la date d'éligibilité — date GED = tmstinj. Inclut J = 0", `color:${col}`)+
+      ligne("<strong>Plus de 4 jours <span style='opacity:.6'>(J &gt; 4)</span></strong>",
+            `<strong>${nb(s.Plus_de_4_jours)} &nbsp; ${pct(s.Plus_de_4_jours)}</strong>`,
+            "trouvées, mais en retard — les manquantes ont leur propre compteur plus bas")+
+      ligne("Dans les 4 jours (depuis le flux)",
+            `${nb(s.Dans_les_4_jours_Depuis_Flux)} &nbsp; ${dim(pct(s.Dans_les_4_jours_Depuis_Flux))}`,
+            "chrono depuis la découverte par le flux — pour arbitrage : l'écart mesure la part de retard due à la rétroactivité des dates d'effet")+
+
+      sep("Où en sont les cartes")+
+      ligne("Trouvées en GED", `${nb(s.Trouvees_GED)} &nbsp; ${dim(pct(s.Trouvees_GED))}`)+
+      ligne("<strong>Manquantes</strong>", `<strong>${nb(s.Non_Trouvees_GED)} &nbsp; ${pct(s.Non_Trouvees_GED)}</strong>`)+
+      ligne("&nbsp;&nbsp;↳ absentes d'IEHE", nb(s.Absents_IEHE),
+            "pas de KPEP : la GED ne peut même pas être interrogée → retry IEHE")+
+      ligne("&nbsp;&nbsp;↳ en attente GED", nb(s.En_Attente_GED),
+            "KPEP connu, GED interrogée, carte pas encore sortie → retry GED")+
+      ligne("<strong>Stock KO antérieur</strong>", `<strong>${nb(s.Stock_KO_Anterieur)}</strong>`,
+            `introuvables issues des flux antérieurs, dues avant le ${fr((s.Stock_KO_Anterieur||{}).Date_Limite)} — cumul depuis le début, recouvre partiellement les manquantes ci-dessus`)+
+
+      sep("Délai des cartes trouvées")+
+      ligne("Min / médian / moyen / max",
+            `${n(d.Min)} / ${n(d.Median)} / ${n(d.Moyenne)} / ${n(d.Max)} j`,
+            `sur ${n(d.Base)} carte(s) trouvée(s) — les manquantes sont exclues du délai mais restent au dénominateur`)+
+      `</tbody></table>`;
+  }catch(e){
+    box.innerHTML='<div class="alert alert-warn">Calcul impossible.</div>';
+  }
+}
+document.getElementById("dg-go").addEventListener("click",loadDelaisGed);
+// Recalcul direct au changement de date : le bouton reste pour re-lancer sans
+// rien modifier (la table bouge d'un run à l'autre).
+document.getElementById("dg-debut").addEventListener("change",loadDelaisGed);
+document.getElementById("dg-fin").addEventListener("change",loadDelaisGed);
+
 // ── Comparaison de flux (#1) ──
 async function loadFluxList(){
   try{
@@ -633,7 +839,7 @@ document.getElementById("cmp-go").addEventListener("click",async()=>{
   }catch(e){box.innerHTML='<div class="alert alert-err">Erreur lors de la comparaison des flux.</div>';}
 });
 
-document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();loadGedTimeline();});
+document.getElementById("btn-refresh").addEventListener("click",()=>{load();loadConnections();loadRuns();loadAlerts();loadDetails();loadFluxList();loadGedTimeline();loadDelaisGedPeriodes();});
 load();
 loadConnections();
 loadRuns();
@@ -641,6 +847,9 @@ loadAlerts();
 loadDetails();
 loadFluxList();
 loadGedTimeline();
+// Les périodes ne dépendent PAS du calendrier (#date-picker) : celui-ci
+// sélectionne un flux, alors que ce bloc raisonne en date d'éligibilité.
+loadDelaisGedPeriodes();
 // Date picker — pilote aussi le graphe de résorption TP GED.
 document.getElementById("date-picker").addEventListener("change", function () {
   selectedDate = this.value || null;

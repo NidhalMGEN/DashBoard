@@ -6,23 +6,41 @@
 Objectif
 --------
 Rapprocher l'extraction GED quotidienne (fichier {PREFIX}_TP_GED.csv) avec la
-population des cartes TP éligibles attendues (déduite de {PREFIX}_New_S.csv
-enrichi par {PREFIX}_IEHE.csv), pour savoir :
-  - quelles cartes TP sont TROUVÉES en GED (statut RAPPROCHE)
-  - quelles cartes TP sont MANQUANTES (statut NON_RAPPROCHE)
+population des cartes TP attendues, pour savoir lesquelles sont sorties en GED
+et lesquelles manquent encore.
+
+D'où vient la population (CHANGEMENT MAJEUR)
+--------------------------------------------
+Plus du {PREFIX}_New_S.csv du jour, mais de `rptpsc.suivi_carte_tp`, alimentée
+par le script 03. Le New_S est un DIFFÉRENTIEL : deux flux consécutifs n'ont
+aucune personne en commun. Une carte éligible au 15 août révélée par le flux du
+25 juillet n'est donc jamais revue — partir du flux du jour la perdait
+définitivement, de même que toutes les cartes restées introuvables la veille.
+
+La requête quotidienne (`fetch_ged_pending`) porte donc sur les affiliations du
+jour PLUS l'antériorité non soldée, en trois conditions :
+  1. `date_eligibilite <= CURRENT_DATE` — les cartes futures attendent leur date
+  2. `date_found_ged IS NULL`           — pas encore trouvée
+  3. `kpep_iehe IS NOT NULL`            — la GED est indexée sur le KPEP IEHE
+
+Aucune union à écrire : le script 03 tourne avant, la table ne se vide jamais.
 
 Règles métier (population TP éligible)
 --------------------------------------
-- Types assurés retenus : ASSPRI, MPACTI, MPRETR, MPVRET
-- Exclusions :
-    * conjoints (type_assure contenant "CONJ")
-    * offres commençant par "INP*"
-    * offres commençant par "MEP*"
-    * société "073"
+L'éligibilité (type assuré / offre / société) n'est PLUS décidée ici : elle est
+calculée par le script 03 et matérialisée dans la table. Le périmètre partagé
+vit dans `Scripts/iehe_ko_lib.py`.
+
 - KPEP GED de référence = KPEP IEHE correspondant au code société de l'assuré
   (`kpep_iehe` de la ligne IEHE dont `socappr == code_soc_appart`).
   À défaut (pas de match société), on retient le `kpep_iehe` de la première
   ligne IEHE disponible pour la personne et on indique le motif.
+  ⚠️ C'est bien le KPEP IEHE, JAMAIS celui du New_S : la carte est indexée en
+  GED sur le KPEP d'IEHE, pas sur celui de l'affiliation.
+- Une personne absente d'IEHE n'a pas de KPEP : elle est comptée au dénominateur
+  avec le motif `absent_iehe` mais EXCLUE de la requête GED, où elle serait
+  introuvable par construction. Le script 06 la résout, le lendemain elle entre
+  d'elle-même dans la recherche.
 
 Flux quotidien
 --------------
@@ -41,35 +59,36 @@ append-only manuel). Colonnes minimales :
   - date_correction    : DDMMYYYY ou YYYY-MM-DD (tracabilité)
   - auteur             : identifiant utilisateur (tracabilité)
 
-La correction surcharge uniquement la colonne `statut_final` ; `statut_rapprochement`
-reste la valeur calculée brute, pour garder la piste d'audit.
+La correction ne se contente plus de surcharger une colonne d'affichage : elle
+modifie l'état en base (`date_found_ged`), pour que le recalcul du script 02
+reprenne la décision le soir même.
 
 Historique
 ----------
-Chaque exécution ajoute en append-only :
-  - Output/Historique_TP_GED.csv (consolidé, clé naturelle = prefix + num_personne
-    + code_societe + offre). La dédoublonnage n'est PAS fait ici : on conserve
-    toutes les lignes pour pouvoir reconstituer l'état à une date donnée.
+Plus de fichier historique cumulatif : l'état vivant est porté par
+`rptpsc.suivi_carte_tp`, où chaque carte conserve sa date de PREMIÈRE
+découverte (les mises à jour sont gardées par `... IS NULL`).
 
 Entrées
 -------
-- Input_Data/{PREFIX}_New_S.csv          (obligatoire)
 - Input_Data/{PREFIX}_IEHE.csv           (obligatoire — source des KPEP réf.)
 - Input_Data/{PREFIX}_TP_GED.csv         (obligatoire — extraction GED du jour)
 - Input_Data/TP_GED_Corrections.csv      (optionnel — surcharge manuelle)
+- rptpsc.suivi_carte_tp                  (obligatoire — LA population)
+Le {PREFIX}_New_S.csv n'est plus lu ; seul son nom sert à détecter le préfixe.
 
 Sorties
 -------
-- Output/{PREFIX}_TP_GED_Detail.csv      (détail exploitable métier)
-- Output/{PREFIX}_TP_GED_KO.csv          (sous-ensemble NON_RAPPROCHE, prêt
-                                          pour revue manuelle)
-- Output/Historique_TP_GED.csv           (append-only cumulatif)
+- Output/{PREFIX}_REQ_TP_GED_KPEP_Part{N}.sql   (requêtes à exécuter sur la GED)
+- rptpsc.suivi_carte_tp   (date_found_ged / date_dispo_ged / kpep_iehe / motif)
+
+`rptpsc.suivi_tp_ged` n'est PLUS alimentée : une seule table porte l'état des
+cartes. La courbe « Résorption TP GED » du dashboard lit `suivi_carte_tp`.
 """
 
 from __future__ import annotations
 
 import argparse
-from operator import itemgetter
 import os
 import re
 import sys
@@ -96,14 +115,25 @@ OUTPUT_DIR = BASE_DIR / "Output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Types assurés éligibles carte TP (doit rester aligné avec 02_calcul_kpi / 03_generation_fichiers_detail)
-TYPES_TP = ["ASSPRI", "MPACTI", "MPRETR", "MPVRET"]
+# `pipeline_runner` ajoute déjà Scripts/ au PYTHONPATH pour TOUTES les étapes,
+# y compris celles de scriptsNewPipline/. Ce complément couvre le lancement
+# manuel du script hors IHM.
+_SCRIPTS_DIR = str(BASE_DIR / "Scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
-# Préfixes d'offres exclus (demande métier flux GED : INP* et MEP*)
-OFFRES_PREFIX_EXCLUS: Tuple[str, ...] = ("INP", "MEP")
+# État vivant des cartes TP attendues — remplace le New_S comme source de la
+# population interrogée. Sans lui, le script ne peut plus rien faire : ce n'est
+# pas un import tolérant.
+import suivi_carte_tp_db
 
-# Sociétés exclues
-SOCIETES_EXCLUES = {"073"}
+# NOTE — La règle d'éligibilité (type assuré / offre / société) ne vit PLUS ici.
+# Elle était dupliquée dans ce fichier sous une forme légèrement différente de
+# celle du script 03 (ici « INP* », là-bas « IND* » + « INPPREVIND ») : deux
+# règles pour une même question, qui se seraient tôt ou tard contredites.
+# Désormais le script 03 décide de l'éligibilité et alimente
+# `rptpsc.suivi_carte_tp` ; ce script ne fait que rechercher en GED ce que la
+# table lui présente. Périmètre partagé : `Scripts/iehe_ko_lib.py`.
 
 # Nom du fichier historique cumulatif (append-only, pas de préfixe)
 HISTORIQUE_FILE = "Historique_TP_GED.csv"
@@ -126,7 +156,8 @@ PG_DB = os.getenv("PG_DB", "supervisionpsc_db")
 PG_USER     = os.environ.get("PG_USER", "rptpsc")
 PG_PASSWORD = os.environ.get("PG_PASSWORD", "rptpsc_xx")
 GED_SCHEMA = os.getenv("PG_SCHEMA", "rptpsc")
-GED_TABLE  = "suivi_tp_ged"
+# `GED_TABLE = "suivi_tp_ged"` retiré : ce script n'écrit plus dans l'ancienne
+# table. Tout l'état des cartes vit dans `rptpsc.suivi_carte_tp`.
 # -----------------------------
 # I/O utilitaires (alignés 03_generation_fichiers_detail.py)
 # -----------------------------
@@ -191,50 +222,6 @@ def find_latest_prefix(folder: Path) -> Optional[str]:
                 best_dt = dt
                 best_prefix = prefix
     return best_prefix
-
-
-# -----------------------------
-# ÉLIGIBILITÉ TP (règles du flux GED)
-# -----------------------------
-def est_conjoint(type_assure: str) -> bool:
-    """True si le type d'assuré désigne un conjoint (CONJ, CONJOINT, etc.)."""
-    return "CONJ" in (type_assure or "").upper()
-
-
-def est_offre_exclue(offre: str) -> bool:
-    """True si l'offre commence par un préfixe exclu (INP*, MEP*)."""
-    o = (offre or "").upper().strip()
-    return o.startswith(OFFRES_PREFIX_EXCLUS)
-
-
-def est_societe_exclue(code_soc: str) -> bool:
-    """True si la société est exclue (073)."""
-    return (code_soc or "").strip() in SOCIETES_EXCLUES
-
-
-def compute_eligibilite_tp_ged(
-    type_assure: str,
-    offre: str,
-    code_soc: str,
-) -> Tuple[bool, str]:
-    """
-    Retourne (eligible, raison_non_eligibilite).
-
-    Règles (demande métier flux GED) :
-      1. type_assure ∈ TYPES_TP   (pas de conjoint)
-      2. offre ne commence pas par INP* / MEP*
-      3. société != 073
-    """
-    ta = (type_assure or "").upper().strip()
-    if est_conjoint(ta):
-        return False, "Conjoint"
-    if ta not in TYPES_TP:
-        return False, f"Type assuré non éligible ({ta or 'vide'})"
-    if est_offre_exclue(offre):
-        return False, "Offre exclue (INP*/MEP*)"
-    if est_societe_exclue(code_soc):
-        return False, "Société exclue (073)"
-    return True, ""
 
 
 # -----------------------------
@@ -383,124 +370,102 @@ def load_corrections(path: Path) -> Dict[Tuple[str, str, str], Tuple[str, str]]:
     return mapping
 
 
-def apply_correction(
-    kpep_ref: str,
-    code_soc: str,
-    offre: str,
-    statut_rapprochement: str,
-    corrections: Dict[Tuple[str, str, str], Tuple[str, str]],
-) -> Tuple[str, str]:
-    """
-    Retourne (statut_final, commentaire_final).
-
-    Règle de recherche (ordre décroissant de spécificité) :
-      1. (kpep, soc, offre) exacte
-      2. (kpep, soc, "")    — joker offre
-      3. (kpep, "",  "")    — joker soc+offre
-    """
-    kpep_u = (kpep_ref or "").strip().upper()
-    soc_s = (code_soc or "").strip()
-    offre_u = (offre or "").strip().upper()
-
-    for key in ((kpep_u, soc_s, offre_u), (kpep_u, soc_s, ""), (kpep_u, "", "")):
-        if key in corrections:
-            dec, com = corrections[key]
-            if dec == "FORCE_RAPPROCHE":
-                return "RAPPROCHE", f"[FORCE_RAPPROCHE] {com}".strip()
-            if dec == "FORCE_NON_RAPPROCHE":
-                return "NON_RAPPROCHE", f"[FORCE_NON_RAPPROCHE] {com}".strip()
-    return statut_rapprochement, ""
-
-
+# `apply_correction()` a été retirée : elle décidait d'un statut ligne à ligne
+# dans un CSV, alors que la correction doit désormais modifier l'ÉTAT en base
+# pour que le KPI la reprenne au recalcul. Sa règle de précédence de clé
+# (exacte > joker offre > joker société+offre) est reprise à l'identique par
+# `suivi_carte_tp_db.apply_corrections()`, qui applique les corrections de la
+# moins spécifique à la plus spécifique — la dernière écriture l'emporte.
 
 
 # -----------------------------
-# CONSTRUCTION DU DÉTAIL
+# RÉSOLUTION DU KPEP IEHE
 # -----------------------------
-def build_detail(
-    df_ns: pd.DataFrame,
+def resolve_kpeps_manquants(
+    conn,
     exact_idx: Dict[Tuple[str, str], str],
     fallback_idx: Dict[str, List[Tuple[str, str]]],
-    corrections: Dict[Tuple[str, str, str], Tuple[str, str]],
-    date_flux: date,
-    prefix: str,
-) -> set :
+) -> Dict[str, int]:
     """
-    Construit le dataframe de détail TP GED à partir du New_S + index IEHE.
+    Renseigne `kpep_iehe` sur les cartes qui n'en ont pas encore.
 
-    1 ligne = 1 contrat de la population TP éligible (après exclusions).
+    ÉTAPE INDISPENSABLE, et non un simple enrichissement : le script 03 insère
+    les cartes SANS KPEP (il n'a pas l'index IEHE par société), alors que
+    `fetch_ged_pending()` exige `kpep_iehe IS NOT NULL`. Sans cette passe, la
+    requête quotidienne ne renverrait jamais rien.
+
+    Le KPEP retenu est celui d'IEHE, résolu par société — PAS celui du New_S.
+    C'est le point que le métier a signalé explicitement : « la carte est indexée
+    sur le KPEP d'IEHE, pas forcément le KPEP de l'affiliation ». L'ancienne
+    version injectait le KPEP New_S dans la requête GED, ce qui faisait chercher
+    la mauvaise clé dès que les deux différaient.
+
+    Les personnes absentes d'IEHE reçoivent le motif `absent_iehe` et AUCUN
+    KPEP : elles restent comptées au dénominateur mais ne partent pas en GED,
+    où elles seraient introuvables par construction. Le script 06 les résoudra.
     """
-    df = df_ns.copy()
-    df.columns = [str(c).strip().lower() for c in df.columns]
+    stats = {"resolues": 0, "absentes_iehe": 0, "fallback": 0}
+    if conn is None:
+        return stats
 
-    col_pers = get_col(df, ["num_personne", "numpersonne"])
-    col_kpep = get_col(df, ["kpep_ref", "kpep", "idepsp", "idkpep"])
-    col_type = get_col(df, ["type_assure", "typeassure"])
-    col_soc = get_col(df, ["code_soc_appart", "code_societe", "code_soc"])
-    col_offre = get_col(df, ["offre", "code_offre"])
+    a_traiter = suivi_carte_tp_db.fetch_sans_kpep(conn)
+    if not a_traiter:
+        return stats
 
-    required = {"num_personne": col_pers, "type_assure": col_type, "offre": col_offre, "kpep" : col_kpep}
-    missing = [k for k, v in required.items() if v is None]
-    if missing:
-        print(f"❌ New_S — colonnes manquantes : {missing}. Traitement impossible.")
-        sys.exit(1)
-        return pd.DataFrame()
+    updates: List[Tuple[str, str, str, str, str]] = []
+    for num_pers, code_soc, offre in a_traiter:
+        kpep_iehe, motif = resolve_kpep_ref(num_pers, code_soc, exact_idx, fallback_idx)
+        kpep_u = (kpep_iehe or "").strip().upper()
+        if kpep_u:
+            stats["resolues"] += 1
+            if motif == "fallback_autre_societe":
+                stats["fallback"] += 1
+        else:
+            stats["absentes_iehe"] += 1
+        updates.append((num_pers, code_soc, offre, kpep_u, motif))
 
-    rows: List[Dict[str, Any]] = []
-
-    date_flux_str = date_flux.strftime("%Y-%m-%d")
-    liste = []
-    for _, r in df.iterrows():
-        num_pers = str(r.get(col_pers, "") or "").strip()
-        if not num_pers:
-            continue
-        type_assure = str(r.get(col_type, "") or "").strip().upper()
-        offre = str(r.get(col_offre, "") or "").strip().upper()
-        code_soc = str(r.get(col_soc, "") or "").strip() if col_soc else ""
-        kpek_ref = str(r.get(col_kpep, "") or "").strip().upper() if col_kpep else ""
-
-        eligible, raison = compute_eligibilite_tp_ged(type_assure, offre, code_soc)
-        if not eligible:
-            continue  # on ne garde que la population éligible dans le détail
-        #kpep depuis newS
-        #motif en base
-        kpep_ref_iehe, motif_kpep = resolve_kpep_ref(num_pers, code_soc, exact_idx, fallback_idx)
-        kpep_ref_u = kpep_ref_iehe.upper().strip()
+    suivi_carte_tp_db.set_kpep_iehe(conn, updates)
+    return stats
 
 
-        # Si pas de KPEP IEHE, on ne peut pas statuer : NON_RAPPROCHE avec motif
-
-        # manage this as non found and like store the reeson because  the nb of ko show also the reseaon 
-        #cause its elegible
-        if not kpep_ref_u:
-            liste.append((kpek_ref,"non rapproché iehe"))
-        else :
-            liste.append((kpek_ref , None))
-
-    return set(liste)
-
-
-# -----------------------------
-# HISTORIQUE APPEND-ONLY
-# -----------------------------
-def append_historique(df_detail: pd.DataFrame, path: Path, sep: str = ";") -> None:
+def load_ged_resultats(prefix: str) -> List[Tuple[str, Optional[str]]]:
     """
-    Ajoute le détail du jour au fichier historique cumulatif. Écrit l'entête
-    uniquement si le fichier n'existe pas encore.
+    Lit le CSV déposé après exécution de la requête GED.
+
+    Retourne des couples (kpep, tmstinj). `tmstinj` est la date d'injection
+    réelle du document en GED ; elle répond à la question métier « date de
+    génération ou date de mise à disposition ? ». Elle est facultative : les
+    exports antérieurs à l'ajout de la colonne ne renvoient que `idepsp`, et le
+    script continue de fonctionner sans elle.
+
+    `exclude="RETRY"` écarte {prefix}_TP_GED_RETRY.csv, produit par le script 08
+    et daté du jour lui aussi.
     """
-    if df_detail is None or df_detail.empty:
-        return
-    write_header = not path.exists()
-    df_detail.to_csv(
-        path,
-        index=False,
-        sep=sep,
-        encoding="utf-8-sig",
-        mode="a" if not write_header else "w",
-        header=write_header,
+    df_ged, _ = load_concat_csv_by_pattern(
+        INPUT_DIR, f"{prefix}_TP_GED*.csv", label="GED", exclude="RETRY"
     )
+    if df_ged is None or df_ged.empty:
+        return []
+
+    col_kpep = get_col(df_ged, ["idepsp", "idkpep", "kpep"])
+    if col_kpep is None:
+        print(f"❌ GED — aucune colonne KPEP trouvée. Colonnes lues : {df_ged.columns.tolist()}")
+        return []
+    col_tms = get_col(df_ged, ["tmstinj", "date_injection", "date_dispo"])
+
+    resultats: List[Tuple[str, Optional[str]]] = []
+    for _, r in df_ged.iterrows():
+        kpep = str(r.get(col_kpep, "") or "").strip()
+        if not kpep:
+            continue
+        tms = str(r.get(col_tms, "") or "").strip() if col_tms else ""
+        resultats.append((kpep, tms or None))
+    return resultats
 
 
+# `append_historique()` a été retirée : elle était définie mais jamais appelée,
+# et l'historique qu'elle prétendait tenir est désormais porté par
+# `rptpsc.suivi_carte_tp`, où chaque carte garde sa date de première découverte.
 
 
 def find_ged_sql_template() -> Optional[Path]:
@@ -519,16 +484,6 @@ def find_ged_sql_template() -> Optional[Path]:
 # -----------------------------
 # FENÊTRE tmstinj DE LA REQUÊTE GED
 # -----------------------------
-def _last_day_of_month(d: date) -> date:
-    """Dernier jour du mois de `d`."""
-    first_next = (
-        d.replace(year=d.year + 1, month=1, day=1)
-        if d.month == 12
-        else d.replace(month=d.month + 1, day=1)
-    )
-    return first_next - timedelta(days=1)
-
-
 def build_ged_window(debut_inclus: date, fin_inclus: date) -> Tuple[str, str]:
     """
     Traduit une fenêtre métier INCLUSIVE [debut_inclus, fin_inclus] en les deux
@@ -548,37 +503,51 @@ def build_ged_window(debut_inclus: date, fin_inclus: date) -> Tuple[str, str]:
     )
 
 
-def compute_window_controle(date_flux: date) -> Tuple[date, date]:
+def compute_window_controle(min_eligibilite: Optional[date]) -> Tuple[date, date]:
     """
-    Fenêtre métier (INCLUSIVE) du contrôle initial, règle validée avec le métier :
+    Fenêtre métier (INCLUSIVE) du contrôle : [plus ancienne éligibilité non
+    soldée, aujourd'hui].
 
-      - début : date de flux - 7 jours, sans déborder sur le mois précédent
-                (plancher = 1er du mois de la date de flux)
-      - fin   : dernier jour du mois de la date de flux
+    Remplace la fenêtre glissante d'origine ([flux - 7j plafonné au 1er du mois,
+    dernier jour du mois]), qui perdait définitivement les cartes rétroactives :
+    une carte due en mai et révélée par le flux d'août tombait hors requête, donc
+    ne pouvait plus JAMAIS être retrouvée en GED — alors qu'elle reste comptée au
+    dénominateur du KPI.
 
-    Exemple : flux du 17/07/2026 → [10/07/2026, 31/07/2026]
-              flux du 03/07/2026 → [01/07/2026, 31/07/2026]  (plancher appliqué)
+    C'est exactement la règle du script 08 (`compute_window_retry`) : la population
+    des deux scripts est la même (`fetch_ged_pending`), la fenêtre doit l'être aussi.
+
+    Le « -1 jour » demandé par le métier sur la borne basse est appliqué par
+    `build_ged_window` : les comparateurs du template étant stricts, la requête
+    finale s'écrit `tmstinj > (min_eligibilite - 1j)`, soit `>= min_eligibilite`.
+
+    Si plus aucune carte n'est en attente, on retombe sur la journée courante.
     """
-    debut = max(date_flux - timedelta(days=7), date_flux.replace(day=1))
-    return debut, _last_day_of_month(date_flux)
+    aujourd_hui = date.today()
+    debut = min_eligibilite if min_eligibilite is not None else aujourd_hui
+    return min(debut, aujourd_hui), aujourd_hui
 
 
 def write_ged_sql_batches(
-    kpep_listt: List[Tuple[str, str]],
+    kpep_list: List[str],
     output_dir: Path,
     prefix: str,
     debut_inclus: date,
     fin_inclus: date,
 ) -> int:
     """
-    Génère les fichiers SQL par batch pour interroger la GED sur les KPEP de
-    référence de la population TP éligible (même mécanique que
-    write_sql_batches du script 01, type 'simple').
+    Génère les fichiers SQL par batch pour interroger la GED sur les KPEP
+    IEHE des cartes attendues (même mécanique que write_sql_batches du
+    script 01, type 'simple').
+
+    `kpep_list` ne contient QUE des KPEP IEHE résolus : les personnes absentes
+    d'IEHE sont écartées en amont par `fetch_ged_pending()`. Auparavant elles
+    étaient injectées ici avec leur KPEP d'affiliation, introuvable en GED par
+    construction.
 
     Sorties : {PREFIX}_REQ_TP_GED_KPEP_Part{N}.sql dans `output_dir`.
     Retourne le nombre de fichiers écrits.
     """
-    kpep_list = list(map(itemgetter(0), kpep_listt)) # take the first element of each element in the list no reason (2nd element)
     tpl_path = find_ged_sql_template()
     if tpl_path is None:
         print(f"      ⚠️  Template SQL absent : {GED_SQL_TEMPLATE} (ni {SCRIPT_DIR}, ni {INPUT_DIR})")
@@ -720,106 +689,12 @@ def connect_GED_auto():
         return None
 
 
-def SaveKpepFisrt_Attempt(name, prefix , cur, formatted):
-    cur.execute(
-            f"""
-            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-            (flux_id, kpep, date_found, motif)
-            VALUES (%s, %s,  %s, NULL)
-            ON CONFLICT (flux_id, kpep) DO NOTHING
-            """,
-            (prefix, name, formatted)
-    )
-
-def SaveKpep(name, prefix, cur):
-    if name[1] == None:
-        cur.execute(
-            f"""
-            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-            (flux_id, kpep, date_found , motif)
-            VALUES (%s, %s, NULL, NULL)
-            ON CONFLICT (flux_id, kpep) DO NOTHING
-            """,
-            (prefix, name[0])
-        )
-    else :
-        cur.execute(
-            f"""
-            INSERT INTO {GED_SCHEMA}.{GED_TABLE}
-            (flux_id, kpep, date_found , motif)
-            VALUES (%s, %s, NULL, %s)
-            ON CONFLICT (flux_id, kpep) DO UPDATE SET motif = EXCLUDED.motif
-            """,
-            (prefix, name[0], name[1] )
-        )
-
-
-
-
-def SaveToDB(Liste, prefix):
-    conn = connect_GED_auto()
-    if not conn:
-        print("cann't connect")
-        sys.exit(1)
-
-    cur = conn.cursor()
-
-    cur.execute(
-    f"""
-    CREATE TABLE IF NOT EXISTS {GED_SCHEMA}.{GED_TABLE} (
-        flux_id TEXT NOT NULL,
-        kpep TEXT NOT NULL,
-        date_found DATE,
-        motif TEXT,
-        PRIMARY KEY (flux_id, kpep)
-    )
-    """
-    )
-
-    # Index kpep seul : le PK (flux_id, kpep) est inutilisable pour les
-    # requêtes par kpep sans flux_id (script 08).
-    cur.execute(
-        f"CREATE INDEX IF NOT EXISTS idx_{GED_TABLE}_kpep ON {GED_SCHEMA}.{GED_TABLE} (kpep)"
-    )
-
-    # CSV GED du jour uniquement. `exclude="RETRY"` écarte {prefix}_TP_GED_RETRY.csv,
-    # produit par le script 08 et daté du jour lui aussi : sans ce filtre, les KPEP
-    # relancés (issus de flux antérieurs) seraient réinjectés sous le flux_id du jour.
-    df_GED , _ = load_concat_csv_by_pattern(
-        INPUT_DIR, f"{prefix}_TP_GED*.csv", label="GED", exclude="RETRY"
-    )
-    if df_GED is None:
-        cur.close()
-        conn.close()
-        return
-    today = date.today()
-
-    col_kpep = get_col(df_GED, ["idepsp", "idkpep", "kpep", "idepsp"])
-    print(df_GED.columns.tolist())
-    if col_kpep is None:
-        print("❌ GED — no KPEP column found.")
-        return
-
-    cur.executemany(
-        f"""INSERT INTO {GED_SCHEMA}.{GED_TABLE} (flux_id, kpep, date_found, motif)
-            VALUES (%s, %s, %s, NULL) ON CONFLICT (flux_id, kpep) DO NOTHING""",
-        [(prefix, str(n).strip(), today) for n in df_GED[col_kpep] if str(n).strip()],
-    )
-        
-    cur.executemany(
-        f"""INSERT INTO {GED_SCHEMA}.{GED_TABLE} (flux_id, kpep, date_found, motif)
-            VALUES (%s, %s, NULL, %s)
-            ON CONFLICT (flux_id, kpep) DO UPDATE SET motif = EXCLUDED.motif""",
-        [(prefix, k, m) for (k, m) in Liste],
-    )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    
-        
-
+# `SaveKpepFisrt_Attempt()`, `SaveKpep()` et `save_suivi_tp_ged()` ont ete
+# retirees. Les deux premieres n'etaient jamais appelees ; la troisieme
+# alimentait `rptpsc.suivi_tp_ged`, l'ANCIENNE table, uniquement pour la
+# courbe « Resorption TP GED » du dashboard. Cette courbe lit desormais
+# `suivi_carte_tp` : une seule table porte l'etat des cartes, plus aucune
+# ecriture a tenir en double.
 
 
 def main() -> int:
@@ -869,23 +744,19 @@ def main() -> int:
     print(f"📂 Préfixe retenu : {prefix}  (date de flux = {date_flux.strftime('%d/%m/%Y')})")
 
     # --- Chargement des fichiers ---
-    path_ns = INPUT_DIR / f"{prefix}_New_S.csv"
     path_iehe = INPUT_DIR / f"{prefix}_IEHE.csv"
     path_corr = INPUT_DIR / CORRECTIONS_FILE
 
-    df_ns = load_csv(path_ns, sep=None)
-    if df_ns is None or df_ns.empty:
-        print(f"❌ Fichier New_S manquant ou vide : {path_ns.name}")
-        return 1
-    df_ns = normalize_cols(df_ns)
-    print(f"   ✅ New_S chargé : {len(df_ns)} lignes")
-
+    # Le New_S n'est PLUS la source de la population — c'est tout l'objet de la
+    # refonte. Il n'est plus lu ici : le script 03 a déjà inséré les cartes du
+    # jour dans `suivi_carte_tp` avant que cette étape ne démarre (ordre du
+    # pipeline : 03 → 06 → 07). Seul son nom sert encore, via la détection du
+    # préfixe ci-dessus.
     df_iehe = load_csv(path_iehe, sep=None)
     if df_iehe is None or df_iehe.empty:
         print(f"⚠️ IEHE absent ou vide ({path_iehe.name}) : KPEP de référence non résolus.")
     else:
         print(f"   ✅ IEHE chargé : {len(df_iehe)} lignes")
-
 
     corrections = load_corrections(path_corr)
 
@@ -896,21 +767,81 @@ def main() -> int:
         f"{len(fallback_idx)} personne(s) indexée(s)"
     )
 
-    # --- Construction du détail ---
-    liste = build_detail(
-        df_ns=df_ns,
-        exact_idx=exact_idx,
-        fallback_idx=fallback_idx,
-        corrections=corrections,
-        date_flux=date_flux,
-        prefix=prefix,
-    )
-    debut_inclus, fin_inclus = compute_window_controle(date_flux)
-    write_ged_sql_batches(liste, OUTPUT_DIR, prefix, debut_inclus, fin_inclus)
-    input(f"\nAppuyez sur Entrée une fois le fichier est mis le fichier doit s'appler {prefix}_TP_GED.csv")
-    SaveToDB(liste,prefix)
+    # --- Table d'état des cartes attendues ---
+    conn_cartes = suivi_carte_tp_db.connect_supervision()
+    if conn_cartes is None or not suivi_carte_tp_db.ensure_table(conn_cartes):
+        print("❌ Table suivi_carte_tp indisponible : contrôle GED impossible.")
+        return 1
 
-    return 0
+    try:
+        # --- 1. Résolution des KPEP IEHE manquants ---
+        stats_kpep = resolve_kpeps_manquants(conn_cartes, exact_idx, fallback_idx)
+        print(f"   ✅ KPEP IEHE : {stats_kpep['resolues']} résolu(s) "
+              f"(dont {stats_kpep['fallback']} par fallback société), "
+              f"{stats_kpep['absentes_iehe']} personne(s) encore absente(s) d'IEHE")
+
+        # --- 2. Population à interroger : le jour + l'antériorité ---
+        #
+        # Une seule requête, pas d'union : les cartes du jour ont été insérées
+        # par le script 03, celles des flux antérieurs n'ont jamais quitté la
+        # table. Les cartes futures en sont exclues par `date_eligibilite <=
+        # CURRENT_DATE` et reviendront d'elles-mêmes le jour de leur échéance.
+        #
+        # Les personnes sans KPEP IEHE sont exclues ici : la GED est indexée sur
+        # ce KPEP, les chercher sans lui ne peut rien donner. Elles restent
+        # comptées au dénominateur du KPI.
+        kpeps_attendus = suivi_carte_tp_db.fetch_ged_pending(conn_cartes)
+        if not kpeps_attendus:
+            print("\n[INFO] Aucune carte à rechercher aujourd'hui.")
+            return 0
+        print(f"   📋 {len(kpeps_attendus)} carte(s) à rechercher en GED "
+              f"(affiliations du jour + antériorité non soldée)")
+
+        # --- 3. Génération des requêtes SQL GED ---
+        #
+        # La fenêtre `tmstinj` est dérivée des DONNÉES (plus ancienne éligibilité
+        # encore en attente), pas de la date du flux : le backlog remonte à des flux
+        # bien antérieurs, qu'une fenêtre calée sur le mois du flux excluait.
+        debut_inclus, fin_inclus = compute_window_controle(
+            suivi_carte_tp_db.fetch_min_eligibilite_pending(conn_cartes)
+        )
+        write_ged_sql_batches(
+            kpeps_attendus, OUTPUT_DIR, prefix, debut_inclus, fin_inclus,
+        )
+
+        input(f"\nAppuyez sur Entrée une fois le fichier déposé — "
+              f"il doit s'appeler {prefix}_TP_GED.csv")
+
+        # --- 4. Dépouillement ---
+        resultats = load_ged_resultats(prefix)
+        if not resultats:
+            print("⚠️ Aucun résultat GED exploitable : aucune carte n'est soldée.")
+            return 1
+
+        today = date.today()
+        nb_soldees = suivi_carte_tp_db.mark_ged_found(conn_cartes, resultats, today)
+        nb_horodatees = suivi_carte_tp_db.mark_checked(conn_cartes, today)
+        print(f"   ✅ {len(resultats)} KPEP trouvé(s) en GED → "
+              f"{nb_soldees} carte(s) soldée(s), {nb_horodatees} encore en attente")
+
+        # --- 5. Corrections manuelles ---
+        #
+        # Elles étaient chargées puis IGNORÉES : `corrections` était un paramètre
+        # de `build_detail` jamais lu dans son corps. Le métier retrouve des
+        # cartes à la main et veut que l'indicateur soit juste le soir même :
+        # elles doivent donc modifier l'ÉTAT, pas seulement l'affichage.
+        if corrections:
+            bilan = suivi_carte_tp_db.apply_corrections(conn_cartes, corrections, today)
+            print(f"   ✅ Corrections manuelles appliquées : "
+                  f"{bilan['rapproches']} forcée(s) rapprochée(s), "
+                  f"{bilan['non_rapproches']} forcée(s) non rapprochée(s)")
+
+        return 0
+    finally:
+        try:
+            conn_cartes.close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 if __name__ == "__main__":

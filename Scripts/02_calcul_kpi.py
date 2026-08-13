@@ -83,6 +83,14 @@ try:
 except ImportError:  # pragma: no cover
     suivi_iehe_db = None
 
+# Table d'état des cartes TP attendues — source des blocs Controle_GED_Quotidien
+# et Delais_GED. Import tolérant : sans elle, le premier retombe sur le CSV de
+# détail et le second n'est pas produit.
+try:
+    import suivi_carte_tp_db
+except ImportError:  # pragma: no cover
+    suivi_carte_tp_db = None
+
 # --- CONFIGURATION ---
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASE_DIR = SCRIPT_DIR if (SCRIPT_DIR / "Input_Data").exists() else SCRIPT_DIR.parent
@@ -294,6 +302,10 @@ def reshape_to_modele_clean(report: Dict[str, Any]) -> Dict[str, Any]:
         "Detail_Par_Type": src7.get("Detail_Par_Type"),
         "TP_Enrichi_Operationnel": tp_enrichi_clean,
         "Controle_GED_Quotidien": src7.get("Controle_GED_Quotidien"),
+        # Ce réassemblage est une liste BLANCHE : une clé non citée ici
+        # disparaît du modèle clean. Delais_GED doit donc y figurer, sans quoi
+        # le dashboard ne verrait jamais l'indicateur des 4 jours.
+        "Delais_GED": src7.get("Delais_GED"),
         "Annexe": annexe_tp_keys,
     }
 
@@ -1142,8 +1154,138 @@ def calcul_kpi_cartes_tp(df_new_s):
 
 def calcul_kpi_tp_ged(prefix: str) -> Dict[str, Any]:
     """
-    Calcule les KPI du contrôle journalier Carte TP GED à partir du fichier
-    détail produit par 07_controle_tp_ged.py : Output/{PREFIX}_TP_GED_Detail.csv.
+    Bloc `7_Carte_TP.Controle_GED_Quotidien`.
+
+    Source PRIMAIRE : `rptpsc.suivi_carte_tp`. Le repli sur le CSV ne sert plus
+    qu'aux rejeux hors base.
+
+    Pourquoi ce basculement : le pipeline en production exécute
+    `scriptsNewPipline/07_controle_tp_ged.py` (cf. pipeline_runner.STEPS), qui
+    n'a JAMAIS écrit `{PREFIX}_TP_GED_Detail.csv` — seul l'ancien `Scripts/07`
+    le produisait. Le calcul retombait donc systématiquement sur
+    `status="Absent"` et toutes ses valeurs à zéro : les tuiles `taux_ged`,
+    `ged_trouves`, `ged_ko` et `ged_recus` du dashboard étaient vides en
+    permanence, sans que rien ne le signale.
+
+    Les clés de sortie sont inchangées (report_generator.py et
+    modules/dashboard/queries.py les lisent) ; `Total_Cartes` est ajoutée, car
+    `_KPI_PATHS["ged_recus"]` la cherchait sans qu'elle ait jamais été produite.
+    """
+    if suivi_carte_tp_db is not None:
+        conn = suivi_carte_tp_db.connect_supervision()
+        if conn is not None:
+            try:
+                stats = suivi_carte_tp_db.fetch_controle_stats(conn)
+                if stats is not None:
+                    return stats
+            finally:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+        print("   [INFO] Contrôle GED : base indisponible ou table vide, "
+              "repli sur le CSV de détail.")
+    return _calcul_kpi_tp_ged_csv(prefix)
+
+
+def calcul_kpi_delais_ged(
+    debut: Optional[str] = None,
+    fin: Optional[str] = None,
+    prefix: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Bloc `7_Carte_TP.Delais_GED` — les délais de mise à disposition en GED.
+
+    C'est l'indicateur contractuel : MGEN est pénalisée quand une carte n'est
+    pas en GED dans les 4 jours. Il ne pouvait pas être calculé juste avant
+    l'existence de `suivi_carte_tp`, pour deux raisons :
+
+      - le dénominateur était faux (cartes futures supprimées, personnes
+        absentes d'IEHE abandonnées) ;
+      - il n'existait aucune date d'éligibilité persistée à laquelle rapporter
+        le délai.
+
+    La cohorte est une PÉRIODE DE DATES D'ÉLIGIBILITÉ, jamais un flux : un flux
+    du 16 juillet contient des cartes dues en juillet ET en septembre. Une
+    période passée ne bouge plus, contrairement à une photo « à date ».
+
+    `debut` / `fin` ("YYYY-MM-DD", bornes incluses) délimitent la période. Une
+    seule journée s'obtient avec `debut == fin`.
+
+    `prefix` ("DDMMYYYY") est le chemin NORMAL depuis le pipeline : la période
+    par défaut est la journée du flux exécuté, pas le mois courant. Le script
+    connaît son préfixe, autant s'en servir plutôt que de laisser la couche base
+    redeviner « le dernier flux » — les deux pourraient diverger sur un rejeu
+    d'un flux ancien.
+
+    Retourne un dict vide si la base est injoignable — le reste du JSON KPI
+    continue d'être produit.
+    """
+    if suivi_carte_tp_db is None:
+        return {}
+
+    if debut is None and fin is None and prefix:
+        try:
+            jour = datetime.strptime(str(prefix).strip(), "%d%m%Y").date()
+            debut = fin = jour.strftime("%Y-%m-%d")
+        except ValueError:
+            # Préfixe non parseable : on laisse `fetch_tp_stats` retomber sur le
+            # dernier flux connu en base plutôt que d'échouer.
+            print(f"   [INFO] Délais GED : préfixe '{prefix}' non parseable, "
+                  f"période déduite de la base.")
+
+    conn = suivi_carte_tp_db.connect_supervision()
+    if conn is None:
+        print("   [INFO] Délais GED : base injoignable, bloc non calculé.")
+        return {}
+    try:
+        stats = suivi_carte_tp_db.fetch_tp_stats(conn, debut, fin)
+        if not stats:
+            return {}
+        # Vue jour par jour de la période : une entrée par date d'éligibilité,
+        # pour répondre « à cette date-là, combien attendues / trouvées / encore
+        # manquantes ». Bornée à 62 jours : au-delà, une requête par journée
+        # coûte plus que la lecture n'apporte, et Par_Mois_Eligibilite suffit.
+        #
+        # Les bornes viennent de `stats`, PAS d'un second appel à
+        # `_bornes_cohorte` : sans arguments, celle-ci retomberait sur le mois
+        # courant alors que `fetch_tp_stats` a résolu la journée du flux. Les deux
+        # résolutions divergeaient, et la vue jour par jour couvrait un mois entier
+        # pour une cohorte d'une journée.
+        d0 = datetime.strptime(stats["Date_Debut"], "%Y-%m-%d").date()
+        d1 = datetime.strptime(stats["Date_Fin"], "%Y-%m-%d").date()
+        if (d1 - d0).days + 1 <= 62:
+            par_jour: Dict[str, Any] = {}
+            j = d0
+            while j <= d1:
+                st = suivi_carte_tp_db.fetch_tp_stats(conn, j, j)
+                if st and st["Population_Attendue"] > 0:
+                    par_jour[j.strftime("%Y-%m-%d")] = {
+                        k: st[k] for k in (
+                            "Population_Attendue", "Cartes_Futures", "Population_Due",
+                            "Issues_Flux_Courant", "Issues_Flux_Anterieurs",
+                            "Dans_les_4_jours", "Plus_de_4_jours", "Le_Jour_Meme",
+                            "Dans_les_4_jours_Depuis_Flux",
+                            "Trouvees_GED", "Non_Trouvees_GED", "Stock_KO_Anterieur",
+                            "Absents_IEHE", "En_Attente_GED", "Distribution_Delai",
+                        )
+                    }
+                j += timedelta(days=1)
+            stats["Par_Jour_Eligibilite"] = par_jour
+        return stats
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _calcul_kpi_tp_ged_csv(prefix: str) -> Dict[str, Any]:
+    """
+    Repli historique : lecture de Output/{PREFIX}_TP_GED_Detail.csv.
+
+    Conservé pour les rejeux hors base et la relecture d'anciens flux produits
+    par `Scripts/07_controle_tp_ged.py`.
 
     Retourne un dict "prêt à injecter" dans le JSON KPI (section 7bis_Carte_TP_GED).
     Si le fichier n'existe pas, retourne un dict avec status="Absent" et des
@@ -3377,9 +3519,13 @@ def main():
     # 7. CARTE TP
     # -------------------------------------------------------------------------
     tp_stats = calcul_kpi_cartes_tp(df_new_s)
-    # --- KPI Carte TP GED (flux quotidien produit par 07_controle_tp_ged.py) ---
-    # Lecture du fichier détail (tolère son absence : section 7bis = status "Absent").
+    # --- KPI Carte TP GED — lu depuis rptpsc.suivi_carte_tp ---
+    # Repli sur Output/{PREFIX}_TP_GED_Detail.csv si la base est injoignable.
     tp_ged_stats = calcul_kpi_tp_ged(prefix)
+    # --- Délais de mise à disposition en GED (indicateur contractuel 4 jours) ---
+    # Cohorte = la JOURNÉE du flux exécuté (son préfixe). Passer `debut=`/`fin=`
+    # ("YYYY-MM-DD", bornes incluses) pour une période libre.
+    tp_delais_ged = calcul_kpi_delais_ged(prefix=prefix)
     # --- KPI5 Rejets Plus Anciens (flux hebdo produit par launch_SQL_query_V2.py) ---
     # Lecture du xlsx output/SQL/<prefix>/ ; tolère son absence (Statut="Absent").
     kpi5_rejets_anciennete = calcul_kpi5_rejets_anciennete(prefix)
@@ -3927,6 +4073,12 @@ def main():
 
             # ---- (4) CONTRÔLE GED QUOTIDIEN ----
             "Controle_GED_Quotidien": tp_ged_stats,
+
+            # ---- (5) DÉLAIS DE MISE À DISPOSITION EN GED ----
+            # Indicateur contractuel (pénalités appel d'offres au-delà de 4 j).
+            # Population = mois d'éligibilité, antériorité comprise — et non le
+            # flux du jour, qui mélange des cartes dues à des mois différents.
+            "Delais_GED": tp_delais_ged,
         },
 
         # =================================================================

@@ -1,0 +1,5 @@
+﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+14548104;BARRER;Jean-Michel;CONJOI;1966-02-12;;;MESMEN001;2026-05-31;2026-06-01;010;N;;;Type assuré non éligible (CONJOI);OK;03062026;;KPEP00001120762307
+14549108;LAVEDRINE;Delphine;CONJOI;1969-06-07;;KPEP00000230754725;MESMEN001;2026-05-31;2026-07-01;010;N;;;Type assuré non éligible (CONJOI);OK;03062026;;KPEP00000230754725
+14550209;Sourira;Aurélien;CONJOI;1989-02-06;;;MESMEN001;2026-05-31;2026-06-01;010;N;;;Type assuré non éligible (CONJOI);OK;03062026;;KPEP00001120749202
+14547993;VASSEUR;PATRICK;CONJOI;1958-11-29;;KPEP00000284908313;MESMEN001;2026-05-31;2026-07-01;010;N;;;Type assuré non éligible (CONJOI);OK;03062026;;KPEP00000284908313

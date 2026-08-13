@@ -1,0 +1,5 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+13754950;Desvignes;David;CONJOI;1990-02-06;;KPEP00001118493600;MESMEN001;2026-05-02;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;06052026;;KPEP00001118493600
+13753230;REYNIER;P Alain;ASSPRI;1980-04-29;pierre-alain.reynier@univ-amu.fr;KPEP00000188640113;INPPREVIND;2026-05-02;2026-05-01;010;N;;;Offre PREV exclue;OK;14052026;pierre-alain.reynier@univ-amu.fr;KPEP00000188640113
+13744931;SCHULLER;VERONIQUE;CONJOI;1965-08-14;;KPEP00001118486109;MESMEN001;2026-05-02;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;06052026;;KPEP00001118486109
+13757794;Vynisale;Charlie;CONJOI;1989-06-08;;KPEP00001118407117;MESMEN001;2026-05-02;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;06052026;;KPEP00001118407117

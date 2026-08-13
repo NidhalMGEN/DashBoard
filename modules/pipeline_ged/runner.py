@@ -43,10 +43,20 @@ class GedPipelineRunner(_core.PipelineRunner):
     }
 
     # Prompt input() des scripts 07/08 : « Appuyez sur Entrée une fois le
-    # fichier est mis le fichier doit s'appelet {PREFIX}_TP_GED[_RETRY].csv ».
+    # fichier ... {PREFIX}_TP_GED[_RETRY].csv ». Le marqueur s'arrête à la
+    # partie STABLE : la fin du prompt diffère entre les deux scripts.
     # Message générique : le nom exact du fichier attendu est dans les logs.
-    PAUSE_PROMPT_MARKER = "fichier est mis"
+    PAUSE_PROMPT_MARKER = "Appuyez sur Entrée une fois le fichier"
     PAUSE_ID = "ged_csv"
     PAUSE_MESSAGE = ("Exécutez les requêtes SQL générées dans Output/ sur la GED, "
                      "déposez le CSV résultat dans Input_Data/ (nom exact affiché "
                      "dans les logs) puis cliquez « Continuer »")
+
+    # Ce runner ne pilote que les scripts 07/08 : le marqueur ci-dessus suffit.
+    # On neutralise les pauses supplémentaires héritées du pipeline ETL, qui
+    # feraient double emploi avec lui.
+    EXTRA_PAUSES: list[tuple[str, str, str]] = []
+
+    # Toutes les étapes de ce pipeline ont une pause manuelle : aucune n'est
+    # jouable sans opérateur (le module n'est de toute façon pas planifiable).
+    UNATTENDED_SKIP = {"tp_ged_controle", "tp_ged_retry"}

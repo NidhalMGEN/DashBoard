@@ -1,0 +1,1298 @@
+{
+    "Fichier_Principal": "10072026_New_S.csv",
+    "Prefixe_Execution": "10072026",
+    "Metadata": {
+        "Date_Execution": "2026-07-13 19:24:00",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "6_IEHE": {
+        "definition": "Indicateurs relatifs au référentiel IEHE (iehe.refkpep) : présence, segmentation par type d'assuré et qualité du référentiel.",
+        "Presence_Globale": {
+            "definition": "Présence dans le référentiel IEHE. Population de référence = toutes personnes uniques du flux (assurés + conjoints), jointure sur num_personne = refperboccn.",
+            "Presents_IEHE": {
+                "Nombre": 2500,
+                "Taux": 96.3
+            },
+            "Manquants_IEHE": {
+                "Nombre": 96,
+                "Taux": 3.7,
+                "dont_Assures": 64,
+                "dont_Conjoints": 33
+            }
+        },
+        "Ecart_Lignes_vs_Personnes": {
+            "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques (KPI). Une même personne peut apparaître sur plusieurs contrats : le KPI dédoublonne par num_personne, le comptage par lignes ne dédoublonne pas. Le delta = nombre de contrats supplémentaires liés aux personnes multi-contrats.",
+            "Total_Flux": {
+                "Lignes": 2619,
+                "Personnes_Uniques": 2596,
+                "Delta_Doublons": 23,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 2480,
+                        "Personnes_Uniques": 2462,
+                        "Delta_Doublons": 18,
+                        "Assures_Non_Crees_IEHE_Et_Eligibles_TP": 50,
+                        "Nb_Eligibles_Carte_TP": 1291
+                    },
+                    "CONJOI": {
+                        "Lignes": 117,
+                        "Personnes_Uniques": 117,
+                        "Delta_Doublons": 0
+                    },
+                    "MPACTI": {
+                        "Lignes": 6,
+                        "Personnes_Uniques": 6,
+                        "Delta_Doublons": 0
+                    },
+                    "MPASSO": {
+                        "Lignes": 12,
+                        "Personnes_Uniques": 11,
+                        "Delta_Doublons": 1
+                    },
+                    "MPCTA": {
+                        "Lignes": 2,
+                        "Personnes_Uniques": 2,
+                        "Delta_Doublons": 0
+                    },
+                    "MPRETR": {
+                        "Lignes": 2,
+                        "Personnes_Uniques": 2,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Manquants_IEHE": {
+                "Lignes": 99,
+                "Personnes_Uniques": 96,
+                "Delta_Doublons": 3,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 60,
+                        "Personnes_Uniques": 59,
+                        "Delta_Doublons": 1
+                    },
+                    "CONJOI": {
+                        "Lignes": 33,
+                        "Personnes_Uniques": 33,
+                        "Delta_Doublons": 0
+                    },
+                    "MPACTI": {
+                        "Lignes": 3,
+                        "Personnes_Uniques": 3,
+                        "Delta_Doublons": 0
+                    },
+                    "MPASSO": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    },
+                    "MPCTA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "MPRETR": {
+                        "Lignes": 2,
+                        "Personnes_Uniques": 2,
+                        "Delta_Doublons": 0
+                    }
+                }
+            }
+        },
+        "Annexe": {
+            "Presents_IEHE": {
+                "Lignes": 2520,
+                "Personnes_Uniques": 2500,
+                "Delta_Doublons": 20,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 2420,
+                        "Personnes_Uniques": 2403,
+                        "Delta_Doublons": 17
+                    },
+                    "CONJOI": {
+                        "Lignes": 84,
+                        "Personnes_Uniques": 84,
+                        "Delta_Doublons": 0
+                    },
+                    "MPACTI": {
+                        "Lignes": 3,
+                        "Personnes_Uniques": 3,
+                        "Delta_Doublons": 0
+                    },
+                    "MPASSO": {
+                        "Lignes": 12,
+                        "Personnes_Uniques": 11,
+                        "Delta_Doublons": 1
+                    },
+                    "MPCTA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "MPRETR": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Doublons_Personnes_Multi_Contrats": {
+                "definition": "Personnes (num_personne) apparaissant sur plusieurs contrats dans le flux. Chaque contrat supplémentaire augmente le comptage-lignes sans augmenter le comptage-personnes.",
+                "Nombre_Personnes": 23,
+                "Par_Type_Assure": {
+                    "ASSPRI": 19,
+                    "MPACTI": 3,
+                    "MPASSO": 1
+                },
+                "Exemples_Top_5": [
+                    {
+                        "num_personne": "9127204",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "10083785",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "10257406",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "3146133",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "14897118",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    }
+                ]
+            },
+            "Retry_IEHE_KO": {
+                "Totaux": {
+                    "Total_KO_Initial": 1443,
+                    "Resolus_Apres_Retry": 1173,
+                    "Encore_KO": 270,
+                    "Taux_Resolution": 81.29,
+                    "Fichiers_Traites": 15
+                },
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Total_KO_Initial": 941,
+                        "Resolus_Apres_Retry": 867,
+                        "Encore_KO": 74,
+                        "Taux_Resolution": 92.14
+                    },
+                    "CONJOI": {
+                        "Total_KO_Initial": 246,
+                        "Resolus_Apres_Retry": 194,
+                        "Encore_KO": 52,
+                        "Taux_Resolution": 78.86
+                    },
+                    "MPACTI": {
+                        "Total_KO_Initial": 12,
+                        "Resolus_Apres_Retry": 9,
+                        "Encore_KO": 3,
+                        "Taux_Resolution": 75.0
+                    },
+                    "MPASSO": {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPCTA": {
+                        "Total_KO_Initial": 19,
+                        "Resolus_Apres_Retry": 18,
+                        "Encore_KO": 1,
+                        "Taux_Resolution": 94.74
+                    },
+                    "MPORHA": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 1,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPRETR": {
+                        "Total_KO_Initial": 219,
+                        "Resolus_Apres_Retry": 80,
+                        "Encore_KO": 139,
+                        "Taux_Resolution": 36.53
+                    },
+                    "MPVRET": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 0,
+                        "Encore_KO": 1,
+                        "Taux_Resolution": 0.0
+                    }
+                },
+                "Par_Eligibilite_TP": {
+                    "Eligible_TP": {
+                        "Total_KO_Initial": 1055,
+                        "Resolus_Apres_Retry": 861,
+                        "Encore_KO": 194,
+                        "Taux_Resolution": 81.61
+                    },
+                    "Future_TP": {
+                        "Total_KO_Initial": 87,
+                        "Resolus_Apres_Retry": 76,
+                        "Encore_KO": 11,
+                        "Taux_Resolution": 87.36
+                    },
+                    "Hors_Perimetre_TP": {
+                        "Total_KO_Initial": 301,
+                        "Resolus_Apres_Retry": 236,
+                        "Encore_KO": 65,
+                        "Taux_Resolution": 78.41
+                    }
+                },
+                "Detail_Par_Fichier": [
+                    {
+                        "Fichier": "06052026_IEHE_KO.csv",
+                        "Total_KO_Initial": 126,
+                        "Resolus_Apres_Retry": 125,
+                        "Taux_Resolution": 99.21,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "8052026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 111,
+                                "Resolus_Apres_Retry": 110,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.1
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 15,
+                                "Resolus_Apres_Retry": 15,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 80,
+                                "Resolus_Apres_Retry": 79,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 98.75
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 31,
+                                "Resolus_Apres_Retry": 31,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 15,
+                                "Resolus_Apres_Retry": 15,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "07052026_IEHE_KO.csv",
+                        "Total_KO_Initial": 26,
+                        "Resolus_Apres_Retry": 25,
+                        "Taux_Resolution": 96.15,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "14052026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 15,
+                                "Resolus_Apres_Retry": 14,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 93.33
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 11,
+                                "Resolus_Apres_Retry": 11,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 12,
+                                "Resolus_Apres_Retry": 11,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 91.67
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 3,
+                                "Resolus_Apres_Retry": 3,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 11,
+                                "Resolus_Apres_Retry": 11,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "07072026_IEHE_KO.csv",
+                        "Total_KO_Initial": 68,
+                        "Resolus_Apres_Retry": 67,
+                        "Taux_Resolution": 98.53,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "9072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 54,
+                                "Resolus_Apres_Retry": 53,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 98.15
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 12,
+                                "Resolus_Apres_Retry": 12,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPASSO": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 2,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 52,
+                                "Resolus_Apres_Retry": 52,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 50.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 14,
+                                "Resolus_Apres_Retry": 14,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "08072026_IEHE_KO.csv",
+                        "Total_KO_Initial": 48,
+                        "Resolus_Apres_Retry": 41,
+                        "Taux_Resolution": 85.42,
+                        "Encore_KO": 7,
+                        "Date_Derniere_Verification": "13072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 29,
+                                "Resolus_Apres_Retry": 22,
+                                "Encore_KO": 7,
+                                "Taux_Resolution": 75.86
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 19,
+                                "Resolus_Apres_Retry": 19,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 16,
+                                "Resolus_Apres_Retry": 16,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 7,
+                                "Resolus_Apres_Retry": 6,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 85.71
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 25,
+                                "Resolus_Apres_Retry": 19,
+                                "Encore_KO": 6,
+                                "Taux_Resolution": 76.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "09062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 186,
+                        "Resolus_Apres_Retry": 185,
+                        "Taux_Resolution": 99.46,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "13072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 150,
+                                "Resolus_Apres_Retry": 149,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.33
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 30,
+                                "Resolus_Apres_Retry": 30,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPACTI": {
+                                "Total_KO_Initial": 4,
+                                "Resolus_Apres_Retry": 4,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPASSO": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 2,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 131,
+                                "Resolus_Apres_Retry": 131,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 21,
+                                "Resolus_Apres_Retry": 20,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 95.24
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 34,
+                                "Resolus_Apres_Retry": 34,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "09072026_IEHE_KO.csv",
+                        "Total_KO_Initial": 17,
+                        "Resolus_Apres_Retry": 16,
+                        "Taux_Resolution": 94.12,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "13072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 7,
+                                "Resolus_Apres_Retry": 6,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 85.71
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 10,
+                                "Resolus_Apres_Retry": 10,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 4,
+                                "Resolus_Apres_Retry": 4,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 2,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 11,
+                                "Resolus_Apres_Retry": 10,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 90.91
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "10072026_IEHE_KO.csv",
+                        "Total_KO_Initial": 96,
+                        "Resolus_Apres_Retry": 0,
+                        "Taux_Resolution": 0.0,
+                        "Encore_KO": 96,
+                        "Date_Derniere_Verification": "13072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 57,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 57,
+                                "Taux_Resolution": 0.0
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 33,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 33,
+                                "Taux_Resolution": 0.0
+                            },
+                            "MPACTI": {
+                                "Total_KO_Initial": 3,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 3,
+                                "Taux_Resolution": 0.0
+                            },
+                            "MPCTA": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 0.0
+                            },
+                            "MPRETR": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 2,
+                                "Taux_Resolution": 0.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 50,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 50,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 8,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 8,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 38,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 38,
+                                "Taux_Resolution": 0.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "17062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 149,
+                        "Resolus_Apres_Retry": 148,
+                        "Taux_Resolution": 99.33,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "19062026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 118,
+                                "Resolus_Apres_Retry": 117,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.15
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 22,
+                                "Resolus_Apres_Retry": 22,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPACTI": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPCTA": {
+                                "Total_KO_Initial": 8,
+                                "Resolus_Apres_Retry": 8,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 110,
+                                "Resolus_Apres_Retry": 109,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.09
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 6,
+                                "Resolus_Apres_Retry": 6,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 33,
+                                "Resolus_Apres_Retry": 33,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "18062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 19,
+                        "Resolus_Apres_Retry": 18,
+                        "Taux_Resolution": 94.74,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "20062026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 13,
+                                "Resolus_Apres_Retry": 12,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 92.31
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 6,
+                                "Resolus_Apres_Retry": 6,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 12,
+                                "Resolus_Apres_Retry": 11,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 91.67
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 7,
+                                "Resolus_Apres_Retry": 7,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "19052026_IEHE_KO.csv",
+                        "Total_KO_Initial": 150,
+                        "Resolus_Apres_Retry": 148,
+                        "Taux_Resolution": 98.67,
+                        "Encore_KO": 2,
+                        "Date_Derniere_Verification": "21052026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 141,
+                                "Resolus_Apres_Retry": 139,
+                                "Encore_KO": 2,
+                                "Taux_Resolution": 98.58
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 9,
+                                "Resolus_Apres_Retry": 9,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 138,
+                                "Resolus_Apres_Retry": 137,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.28
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 12,
+                                "Resolus_Apres_Retry": 11,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 91.67
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "22062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 6,
+                        "Resolus_Apres_Retry": 5,
+                        "Taux_Resolution": 83.33,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "25062026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 5,
+                                "Resolus_Apres_Retry": 5,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 0.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 4,
+                                "Resolus_Apres_Retry": 4,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 2,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 50.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "23062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 90,
+                        "Resolus_Apres_Retry": 90,
+                        "Taux_Resolution": 100.0,
+                        "Encore_KO": 0,
+                        "Date_Derniere_Verification": "30062026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 64,
+                                "Resolus_Apres_Retry": 64,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 15,
+                                "Resolus_Apres_Retry": 15,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPACTI": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPCTA": {
+                                "Total_KO_Initial": 10,
+                                "Resolus_Apres_Retry": 10,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 63,
+                                "Resolus_Apres_Retry": 63,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 26,
+                                "Resolus_Apres_Retry": 26,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "28062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 249,
+                        "Resolus_Apres_Retry": 93,
+                        "Taux_Resolution": 37.35,
+                        "Encore_KO": 156,
+                        "Date_Derniere_Verification": "13072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 30,
+                                "Resolus_Apres_Retry": 12,
+                                "Encore_KO": 18,
+                                "Taux_Resolution": 40.0
+                            },
+                            "MPRETR": {
+                                "Total_KO_Initial": 217,
+                                "Resolus_Apres_Retry": 80,
+                                "Encore_KO": 137,
+                                "Taux_Resolution": 36.87
+                            },
+                            "MPVRET": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 0.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 219,
+                                "Resolus_Apres_Retry": 81,
+                                "Encore_KO": 138,
+                                "Taux_Resolution": 36.99
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 0,
+                                "Resolus_Apres_Retry": 0,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 0.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 30,
+                                "Resolus_Apres_Retry": 12,
+                                "Encore_KO": 18,
+                                "Taux_Resolution": 40.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "29062026_IEHE_KO.csv",
+                        "Total_KO_Initial": 71,
+                        "Resolus_Apres_Retry": 71,
+                        "Taux_Resolution": 100.0,
+                        "Encore_KO": 0,
+                        "Date_Derniere_Verification": "1072026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 48,
+                                "Resolus_Apres_Retry": 48,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 19,
+                                "Resolus_Apres_Retry": 19,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPACTI": {
+                                "Total_KO_Initial": 3,
+                                "Resolus_Apres_Retry": 3,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "MPORHA": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 46,
+                                "Resolus_Apres_Retry": 46,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 1,
+                                "Resolus_Apres_Retry": 1,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 24,
+                                "Resolus_Apres_Retry": 24,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    },
+                    {
+                        "Fichier": "30042026_IEHE_KO.csv",
+                        "Total_KO_Initial": 142,
+                        "Resolus_Apres_Retry": 141,
+                        "Taux_Resolution": 99.3,
+                        "Encore_KO": 1,
+                        "Date_Derniere_Verification": "7052026",
+                        "Par_Type_Assure": {
+                            "ASSPRI": {
+                                "Total_KO_Initial": 128,
+                                "Resolus_Apres_Retry": 127,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.22
+                            },
+                            "CONJOI": {
+                                "Total_KO_Initial": 14,
+                                "Resolus_Apres_Retry": 14,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        },
+                        "Par_Eligibilite_TP": {
+                            "Eligible_TP": {
+                                "Total_KO_Initial": 118,
+                                "Resolus_Apres_Retry": 117,
+                                "Encore_KO": 1,
+                                "Taux_Resolution": 99.15
+                            },
+                            "Future_TP": {
+                                "Total_KO_Initial": 5,
+                                "Resolus_Apres_Retry": 5,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            },
+                            "Hors_Perimetre_TP": {
+                                "Total_KO_Initial": 19,
+                                "Resolus_Apres_Retry": 19,
+                                "Encore_KO": 0,
+                                "Taux_Resolution": 100.0
+                            }
+                        }
+                    }
+                ]
+            },
+            "Detail_Par_Type_Assure": {
+                "definition": "Détail IEHE par type d'assuré et corrélations avec l'éligibilité TP.",
+                "Population_Ref_Par_Type_Assure": {
+                    "ASSPRI": 2462,
+                    "CONJOI": 117,
+                    "MPACTI": 6,
+                    "MPASSO": 11,
+                    "MPCTA": 2,
+                    "MPRETR": 2
+                },
+                "Presents_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 2403,
+                    "CONJOI": 84,
+                    "MPACTI": 3,
+                    "MPASSO": 11,
+                    "MPCTA": 1,
+                    "MPRETR": 0
+                },
+                "Manquants_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 59,
+                    "CONJOI": 33,
+                    "MPACTI": 3,
+                    "MPASSO": 0,
+                    "MPCTA": 1,
+                    "MPRETR": 2
+                },
+                "Correlation_TP_Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Presents_IEHE": {
+                            "TP_Valide": 1238,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 177
+                        },
+                        "Manquants_IEHE": {
+                            "TP_Valide": 45,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 8
+                        }
+                    },
+                    "MPACTI": {
+                        "Presents_IEHE": {
+                            "TP_Valide": 3,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        },
+                        "Manquants_IEHE": {
+                            "TP_Valide": 3,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        }
+                    },
+                    "MPRETR": {
+                        "Presents_IEHE": {
+                            "TP_Valide": 0,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        },
+                        "Manquants_IEHE": {
+                            "TP_Valide": 2,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        }
+                    }
+                },
+                "Totaux_TP_Presents_IEHE": {
+                    "TP_Valide": 1241,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 177
+                },
+                "Totaux_TP_Manquants_IEHE": {
+                    "TP_Valide": 50,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 8
+                },
+                "Ecart_Lignes_vs_Personnes": {
+                    "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques pour les KPI de l'annexe IEHE. Mêmes principes que 6_IEHE.Ecart_Lignes_vs_Personnes : une personne peut avoir plusieurs contrats → +1 ligne par contrat supplémentaire.",
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP": {
+                        "Lignes": 51,
+                        "Personnes_Uniques": 50,
+                        "Delta_Doublons": 1
+                    },
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP_Par_Type": {
+                        "ASSPRI": {
+                            "Lignes": 46,
+                            "Personnes_Uniques": 47,
+                            "Delta_Doublons": -1
+                        },
+                        "MPACTI": {
+                            "Lignes": 3,
+                            "Personnes_Uniques": 3,
+                            "Delta_Doublons": 0
+                        },
+                        "MPRETR": {
+                            "Lignes": 2,
+                            "Personnes_Uniques": 2,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Correlation_TP_Par_Type_Assure": {
+                        "ASSPRI": {
+                            "Presents_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 1249,
+                                    "Personnes_Uniques": 1238,
+                                    "Delta_Doublons": 11
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 177,
+                                    "Personnes_Uniques": 177,
+                                    "Delta_Doublons": 0
+                                }
+                            },
+                            "Manquants_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 46,
+                                    "Personnes_Uniques": 45,
+                                    "Delta_Doublons": 1
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 8,
+                                    "Personnes_Uniques": 8,
+                                    "Delta_Doublons": 0
+                                }
+                            }
+                        },
+                        "MPACTI": {
+                            "Presents_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 3,
+                                    "Personnes_Uniques": 3,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            },
+                            "Manquants_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 3,
+                                    "Personnes_Uniques": 3,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            }
+                        },
+                        "MPRETR": {
+                            "Presents_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            },
+                            "Manquants_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 2,
+                                    "Personnes_Uniques": 2,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            }
+                        }
+                    },
+                    "Totaux_TP_Presents_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 1252,
+                            "Personnes_Uniques": 1241,
+                            "Delta_Doublons": 11
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 177,
+                            "Personnes_Uniques": 177,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Totaux_TP_Manquants_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 51,
+                            "Personnes_Uniques": 50,
+                            "Delta_Doublons": 1
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 8,
+                            "Personnes_Uniques": 8,
+                            "Delta_Doublons": 0
+                        }
+                    }
+                }
+            },
+            "Qualite_Referentiel": {
+                "definition": "Indicateurs de qualité du référentiel IEHE et de cohérence avec les autres sources. D1 — Complétude email IEHE (adrmailctc). D2 — Concordance email IEHE vs CIAM (rapprochés présents en IEHE). D3 — Concordance société IEHE vs New_S (socappr vs code_soc_appart).",
+                "D1_Completude_Email_IEHE": {
+                    "definition": "Présence de l'email de contact (adrmailctc) dans le référentiel IEHE.",
+                    "Population_IEHE": 2500,
+                    "Email_Rempli": {
+                        "Nombre": 2415,
+                        "Pct": 96.6
+                    },
+                    "Email_Vide": {
+                        "Nombre": 85,
+                        "Pct": 3.4
+                    }
+                },
+                "D2_Concordance_Email_IEHE_CIAM": {
+                    "definition": "Concordance entre l'email IEHE (adrmailctc) et l'email du compte CIAM matché, pour les assurés rapprochés présents dans IEHE.",
+                    "Base_Rapproches_Presents_IEHE": 2404,
+                    "Emails_Identiques": {
+                        "Nombre": 1762,
+                        "Pct": 73.29
+                    },
+                    "Emails_Differents": {
+                        "Nombre": 629,
+                        "Pct": 26.16
+                    },
+                    "IEHE_Vide_CIAM_Present": {
+                        "Nombre": 2,
+                        "Pct": 0.08
+                    },
+                    "CIAM_Vide_IEHE_Present": {
+                        "Nombre": 5,
+                        "Pct": 0.21
+                    },
+                    "Deux_Vides": {
+                        "Nombre": 6,
+                        "Pct": 0.25
+                    }
+                },
+                "D3_Concordance_Societe_IEHE_NS": {
+                    "definition": "Concordance entre socappr (IEHE) et code_soc_appart (New_S), par personne (jointure sur refperboccn = num_personne).",
+                    "Base_Personnes_IEHE": 2500,
+                    "Societes_Identiques": {
+                        "Nombre": 2500,
+                        "Pct": 100.0
+                    },
+                    "Societes_Differentes": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "IEHE_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "NS_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                },
+                "J1b_Potentiel_Enrichissement_CIAM": {
+                    "definition": "Parmi les rapprochés présents dans IEHE : email IEHE renseigné mais absent ou différent dans CIAM → potentiel d'enrichissement. = CIAM_Vide_IEHE_Present + Emails_Differents.",
+                    "Base": 2404,
+                    "Potentiel_Enrichissement": {
+                        "Nombre": 634,
+                        "Pct": 26.37
+                    },
+                    "Dont_CIAM_Vide": {
+                        "Nombre": 5
+                    },
+                    "Dont_Email_Different": {
+                        "Nombre": 629
+                    }
+                },
+                "J1c_Emails_IEHE_Invalides": {
+                    "definition": "Parmi les emails IEHE (adrmailctc) renseignés : emails au format invalide (ne respectant pas la syntaxe standard).",
+                    "Base_Emails_Remplis": 2415,
+                    "Emails_Invalides": {
+                        "Nombre": 1,
+                        "Pct": 0.04
+                    }
+                }
+            }
+        }
+    }
+}

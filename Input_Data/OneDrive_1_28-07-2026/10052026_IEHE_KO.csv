@@ -1,0 +1,5 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+13912297;AMBROSETTI;ANNE CATHE;ASSPRI;1972-11-18;annecatherineambrosetti@yahoo.fr;KPEP00000067883127;INPPREVIND;2026-05-10;2026-05-01;010;N;;;Offre PREV exclue;OK;10062026;annecatherineambrosetti@yahoo.fr;KPEP00000067883127
+13904843;CHALAL;ALLAOUA;CONJOI;1979-06-21;;;MESMEN001;2026-05-10;2026-06-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00001119008727
+13908982;MOULIN;LILIAN;CONJOI;1974-02-21;;;MESMEN001;2026-05-10;2026-06-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00001118974824
+13903936;veniard;nathalie;CONJOI;1968-08-26;;KPEP00000517782725;MESMEN001;2026-05-10;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;13052026;;KPEP00000517782725

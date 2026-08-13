@@ -1,0 +1,5 @@
+"id","realm_id","idkpep","email","email_other","channel","first_name","last_name","middlename","phonenumber","birthdate","type","origincreation","client","date_evt","heure_evt"
+"219c5469-b5cd-4fd4-879b-e7ca6741bfb9","010","KPEP00000936976830","affi.chahinez@gmail.com","","","Chahinaze","BOUDJEMA","AFFI","+33659213209","1989-08-10","LOGIN","MIGRATION","mgen-ep-app-oidc","2026-07-30","13:47:09"
+"0eceaf53-a899-4857-8b4d-1ed823fad33f","044","KPEP00000973774402","colette.santos@netcabo.pt","","","COLETTE","PRADINES","DOS SANTOS","+48966717092","1942-04-08","LOGIN","","mgen-ep-app-oidc","2026-06-08","18:33:30"
+"6851ff1b-91c5-4f15-bb39-de873c42144e","010","KPEP00000058508222","dossantos.colette@orange.fr","","","COLETTE","LE BRIS","DOS SANTOS","+33679559987","1950-05-07","LOGIN","MIGRATION","mgen-epg-app-oidc","2026-02-19","14:08:47"
+"1a256bf3-8dd6-45e1-abc8-11919441531e","010","KPEP00000331304038","rousseau@ceremade.dauphine.fr","","","JUDITH","ROUSSEAU","ROUSSEAU","+33662206231","1970-05-28","LOGIN","MIGRATION","mgen-ep-app-oidc","2026-05-14","14:28:27"

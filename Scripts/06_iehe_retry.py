@@ -45,6 +45,13 @@ except ImportError:
 
 import suivi_iehe_db
 
+# Propagation du KPEP trouvé vers les cartes TP attendues. Import tolérant : le
+# retry IEHE reste utile même sans la table des cartes.
+try:
+    import suivi_carte_tp_db
+except ImportError:  # pragma: no cover
+    suivi_carte_tp_db = None
+
 # --- CONFIGURATION ---
 # Base IEHE (lecture seule) — section [postgresql_iehe] de config/credentials.ini.
 PG_USER = os.environ.get("PG_USER", "u_lpillon")
@@ -208,6 +215,27 @@ def main():
         # Après mark_found, les lignes encore NULL sont exactement les non trouvées.
         nb_horodatees = suivi_iehe_db.mark_checked(conn_suivi, today)
 
+        # 5. Propagation vers les cartes TP attendues
+        #
+        # Automatise le geste manuel décrit par le métier : « récupérer le KPEP
+        # qui vient d'être créé pour relancer ». Une carte dont la personne était
+        # absente d'IEHE n'était pas recherchable en GED (la GED est indexée sur
+        # le KPEP IEHE) ; dès que la personne existe, la carte redevient
+        # recherchable — et comme le script 06 tourne AVANT le 07 dans le
+        # pipeline, c'est le jour même, pas à J+1.
+        nb_cartes_sync = 0
+        if suivi_carte_tp_db is not None:
+            conn_cartes = suivi_carte_tp_db.connect_supervision()
+            if conn_cartes is not None:
+                try:
+                    if suivi_carte_tp_db.ensure_table(conn_cartes):
+                        nb_cartes_sync = suivi_carte_tp_db.sync_kpep_from_iehe(conn_cartes)
+                finally:
+                    try:
+                        conn_cartes.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+
         print(f"\n{'='*60}")
         print(f"  RÉSUMÉ")
         print(f"{'='*60}")
@@ -217,6 +245,8 @@ def main():
               f"solder plusieurs flux)")
         print(f"  Toujours absentes      : {nb_still} "
               f"({nb_horodatees} ligne(s) horodatée(s))")
+        print(f"  Cartes TP débloquées   : {nb_cartes_sync}  (KPEP IEHE propagé "
+              f"vers {suivi_carte_tp_db.FQTN if suivi_carte_tp_db else 'suivi_carte_tp'})")
         print(f"  Date de vérification   : {today.strftime('%d/%m/%Y')}")
         print()
         return 0

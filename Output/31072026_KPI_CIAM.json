@@ -1,0 +1,568 @@
+{
+    "Fichier_Principal": "31072026_New_S.csv",
+    "Prefixe_Execution": "31072026",
+    "Metadata": {
+        "Date_Execution": "2026-08-13 12:01:45",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "5_CIAM": {
+        "definition": "Indicateurs relatifs au référentiel CIAM (Keycloak) : rapprochement, segmentation, cohérence emails, qualité des comptes, incohérences NS↔CIAM, qualité des sources extraites et indicateurs enrichis.",
+        "Matching_Global": {
+            "definition": "Rapprochement des assurés uniques avec CIAM (Keycloak). Méthode Option B (set-based) : toutes les valeurs candidates d'une personne sont testées simultanément. Ordre : Mail_CIAM > Valeur_Coord > KPEP > Identite_Full > Identite_Inversee > Recherche_Large_Nom > Recherche_Large_Middle.",
+            "Global": {
+                "Cible": 1369,
+                "Rapproches": 1343,
+                "Non_Rapproches": 26,
+                "Taux_Couverture": 98.1
+            }
+        },
+        "Coherence_Emails": {
+            "Email_CIAM_Rapproche_Egal_Val_Coord": {
+                "definition": "Parmi les comptes rapprochés : l'email du compte Keycloak matché (CIAM) = l'email valeur_coordonnee (New_S). Base = population rapprochée.",
+                "Nombre": 1004,
+                "Pct_Sur_Rapproches": 74.76,
+                "Base_Rapproches": 1343,
+                "Coherence_Emails": {
+                    "Mails_CIAM_Egal_Val_Coord": {
+                        "Nombre": 1054,
+                        "Pct": 73.65
+                    },
+                    "Vrais_Emails_Identiques": {
+                        "Nombre": 1012,
+                        "Pct": 70.72,
+                        "definition": "Emails égaux ET non-vides (exclut les 'deux vides' comptés à tort comme égaux)."
+                    },
+                    "Mails_CIAM_Diff_Val_Coord": {
+                        "Nombre": 377,
+                        "Pct": 26.35
+                    },
+                    "Detail_Diff": {
+                        "CIAM_Present_Coord_Absente": {
+                            "Nombre": 24,
+                            "Pct": 1.68
+                        },
+                        "Coord_Presente_CIAM_Absent": {
+                            "Nombre": 34,
+                            "Pct": 2.38
+                        },
+                        "Deux_Emails_Distincts": {
+                            "Nombre": 319,
+                            "Pct": 22.29
+                        }
+                    },
+                    "Mails_CIAM_Vides": {
+                        "Nombre": 76,
+                        "Pct": 5.31
+                    },
+                    "Mails_Val_Coord_Vides": {
+                        "Nombre": 66,
+                        "Pct": 4.61
+                    },
+                    "Mails_Deux_Sources_Vides": {
+                        "Nombre": 42,
+                        "Pct": 2.94
+                    }
+                }
+            },
+            "KPI_Adresses_CIAM_Vides": {
+                "definition": "Parmi les comptes rapprochés ayant une valeur_coordonnee email : combien ont un email vide dans le compte Keycloak matché ? Base = population rapprochée.",
+                "Nombre": 6,
+                "Pct_Sur_Rapproches": 0.45,
+                "Base_Rapproches": 1343
+            }
+        },
+        "Synthese_IEHE": {
+            "definition": "Synthèse de la présence IEHE remontée dans la section CIAM pour lecture rapide. Détail complet en 6_IEHE.",
+            "Personnes_Uniques_Presentes_IEHE": 1420,
+            "Personnes_Uniques_Absentes_IEHE": {
+                "Nombre": 4,
+                "Taux": 0.28
+            },
+            "Assures_Uniques_Absents_IEHE": 3,
+            "Assures_Absents_IEHE_Et_Eligibles_Carte_TP": 1
+        },
+        "Qualite_NewS": {
+            "definition": "Indicateurs de qualité des données source dans le fichier New_S. A1 — Complétude des clés de rapprochement par personne unique. A2 — Complétude par champ clé (mailciam, idkpep, date_naissance, nom, prenom). A3 — Taux de radiation (lignes avec dateradassure renseigné).",
+            "A3_Radiation": {
+                "definition": "Lignes avec dateradassure renseigné (non-vide).",
+                "Toute_Population": {
+                    "Nombre": 77,
+                    "Pct": 5.38,
+                    "Base": 1431
+                },
+                "Assures_Uniquement": {
+                    "Nombre": 73,
+                    "Pct": 5.31,
+                    "Base": 1376
+                }
+            }
+        },
+        "Prospects_CIAM": {
+            "definition": "E1 — Comptes Keycloak créés avec birthdate = '1900-01-01' (prospects), croisé avec NS et les rapprochés.",
+            "E1c_Rapproches_Compte_CIAM_Prospect": {
+                "definition": "Parmi les assurés rapprochés dans CIAM : combien ont été associés à un compte Keycloak dont la birthdate = '1900-01-01' (compte créé sur un prospect).",
+                "Base_Rapproches": 1343,
+                "Rapproches_Compte_Prospect": {
+                    "Nombre": 2,
+                    "Pct": 0.15
+                }
+            }
+        },
+        "Qualite_Emails_Enrichie": {
+            "definition": "Qualité des adresses email dans les 3 sources. Invalide = format non conforme (absence @, structure incorrecte). À risque = domaine dans la liste des domaines suspects (jetables, temporaires, gmx…).",
+            "NS_Emails_MailCIAM": {
+                "source": "New_S (mailciam)",
+                "Total_Emails": 1355,
+                "Invalides": {
+                    "Nombre": 0,
+                    "Pct": 0.0,
+                    "definition": "Email ne respectant pas le format standard (absence '@', domaine invalide, etc.)."
+                },
+                "A_Risque": {
+                    "Nombre": 2,
+                    "Pct": 0.15,
+                    "definition": "Email dont le domaine figure dans la liste des domaines à risque (25 domaines : yopmail, gmx, jetable, mailinator…)."
+                },
+                "Top_Domaines": {
+                    "gmail.com": 406,
+                    "orange.fr": 90,
+                    "yahoo.fr": 73,
+                    "hotmail.fr": 70,
+                    "laposte.net": 40,
+                    "wanadoo.fr": 35,
+                    "free.fr": 30,
+                    "hotmail.com": 27,
+                    "ac-versailles.fr": 25,
+                    "ac-montpellier.fr": 20
+                }
+            }
+        },
+        "Annexe": {
+            "Detail_Matching": {
+                "definition": "Détail du rapprochement CIAM par méthode et par source.",
+                "Par_Methode": {
+                    "Mail_CIAM": 1324,
+                    "KPEP": 14,
+                    "Valeur_Coord": 5
+                },
+                "Par_Source_Fichier": {
+                    "Standard_CK_CM": 1343,
+                    "Fichier_Last": 0,
+                    "Fichier_Middle": 0
+                },
+                "Sources_Reference": {
+                    "CK_Principal": {
+                        "Fichier": "31072026_CK*.csv (Pattern/Concat)",
+                        "Lignes": 1351,
+                        "Statut": "Chargé"
+                    },
+                    "CM_Complementaire": {
+                        "Fichier": "31072026_CM*.csv (Pattern/Concat)",
+                        "Lignes": 1358,
+                        "Statut": "Chargé"
+                    },
+                    "Last_Complementaire": {
+                        "Fichier": "31072026_Last*.csv (Pattern/Concat)",
+                        "Lignes": 3,
+                        "Statut": "Chargé"
+                    },
+                    "Middle_Complementaire": {
+                        "Fichier": "31072026_Middle*.csv (Pattern/Concat)",
+                        "Lignes": 6,
+                        "Statut": "Chargé"
+                    }
+                }
+            },
+            "Matching_Par_Segment": {
+                "definition": "Analyse segmentée du rapprochement CIAM pour identifier les populations moins bien couvertes et les anomalies de référentiel. B1 — Par type d'assuré : taux de rapprochement distincts par type (ASSPRI, MPACTI, MPRETR, MPVRET). B2 — Par société : taux de rapprochement par code_soc_appart. B3 — Décomposition des non-rapprochés (clé absente vs clé présente non trouvée). B4 — Cohérence KPEP entre New_S et le compte Keycloak matché.",
+                "B2_Par_Societe": {
+                    "definition": "Taux de rapprochement CIAM par code société (code_soc_appart).",
+                    "Resultats": {
+                        "010": {
+                            "Total": 1342,
+                            "Rapproches": 1323,
+                            "Non_Rapproches": 19,
+                            "Taux": 98.58
+                        },
+                        "044": {
+                            "Total": 17,
+                            "Rapproches": 17,
+                            "Non_Rapproches": 0,
+                            "Taux": 100.0
+                        },
+                        "052": {
+                            "Total": 7,
+                            "Rapproches": 0,
+                            "Non_Rapproches": 7,
+                            "Taux": 0.0
+                        },
+                        "073": {
+                            "Total": 3,
+                            "Rapproches": 3,
+                            "Non_Rapproches": 0,
+                            "Taux": 100.0
+                        }
+                    }
+                },
+                "B3_Decomposition_Non_Rapproches": {
+                    "definition": "Parmi les non-rapprochés : distingue l'absence totale de clé de rapprochement des cas où une clé est présente mais introuvable dans CIAM.",
+                    "Total_Non_Rapproches": 26,
+                    "Aucune_Cle_Disponible": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "Cle_Presente_Non_Trouvee": {
+                        "Nombre": 26,
+                        "Pct": 100.0
+                    }
+                },
+                "B4_Coherence_KPEP": {
+                    "definition": "Parmi les rapprochés ayant un KPEP dans New_S : cohérence entre ce KPEP et le KPEP du compte CIAM matché.",
+                    "Base_Rapproches_Avec_KPEP_NewS": 1343,
+                    "KPEP_Coherent": {
+                        "Nombre": 1337,
+                        "Pct": 99.55
+                    },
+                    "KPEP_Different": {
+                        "Nombre": 6,
+                        "Pct": 0.45
+                    },
+                    "CIAM_Sans_KPEP": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                },
+                "H1b_Methode_Par_Societe": {
+                    "definition": "Répartition des méthodes de rapprochement par code société (rapprochés uniquement). Croisement méthode × code_soc_appart.",
+                    "Resultats": {
+                        "KPEP": {
+                            "010": 14
+                        },
+                        "Mail_CIAM": {
+                            "010": 1304,
+                            "044": 17,
+                            "073": 3
+                        },
+                        "Valeur_Coord": {
+                            "010": 5
+                        }
+                    }
+                },
+                "H1c_NonRap_KPEP_NS_Absent_CIAM": {
+                    "definition": "Parmi les non-rapprochés : personnes ayant un KPEP dans New_S mais dont ce KPEP est introuvable dans CIAM → compte potentiellement manquant.",
+                    "Nombre": 26,
+                    "Pct": 100.0
+                },
+                "H1d_NonRap_Email_NS_Absent_CIAM": {
+                    "definition": "Parmi les non-rapprochés : personnes ayant un email dans New_S (mailciam ou valeur_coordonnee) mais dont cet email est introuvable dans CIAM → email potentiellement à créer ou corriger dans CIAM.",
+                    "Nombre": 21,
+                    "Pct": 80.77
+                }
+            },
+            "Coherence_Emails": {
+                "Mails_CIAM_Egal_Val_Coord": {
+                    "Nombre": 1054,
+                    "Pct": 73.65
+                },
+                "Vrais_Emails_Identiques": {
+                    "Nombre": 1012,
+                    "Pct": 70.72,
+                    "definition": "Emails égaux ET non-vides (exclut les 'deux vides' comptés à tort comme égaux)."
+                },
+                "Mails_CIAM_Diff_Val_Coord": {
+                    "Nombre": 377,
+                    "Pct": 26.35
+                },
+                "Detail_Diff": {
+                    "CIAM_Present_Coord_Absente": {
+                        "Nombre": 24,
+                        "Pct": 1.68
+                    },
+                    "Coord_Presente_CIAM_Absent": {
+                        "Nombre": 34,
+                        "Pct": 2.38
+                    },
+                    "Deux_Emails_Distincts": {
+                        "Nombre": 319,
+                        "Pct": 22.29
+                    }
+                },
+                "Mails_CIAM_Vides": {
+                    "Nombre": 76,
+                    "Pct": 5.31
+                },
+                "Mails_Val_Coord_Vides": {
+                    "Nombre": 66,
+                    "Pct": 4.61
+                },
+                "Mails_Deux_Sources_Vides": {
+                    "Nombre": 42,
+                    "Pct": 2.94
+                }
+            },
+            "Qualite_Comptes_CIAM": {
+                "definition": "Indicateurs de complétude et de cohérence des comptes Keycloak (CIAM). F1a — Sans email (ni email ni email_other). F1b — Sans KPEP valide (préfixe KPEP absent). F1c — Email_other seulement (migration incomplète). F1d — Doublons email : même adresse liée à plusieurs comptes CIAM.",
+                "_Base_Comptes_CIAM_Uniques": 1380,
+                "F1a_Sans_Email": {
+                    "definition": "Comptes CIAM sans email (ni email ni email_other renseignés).",
+                    "Nombre": 19,
+                    "Pct": 1.38
+                },
+                "F1b_Sans_KPEP": {
+                    "definition": "Comptes CIAM sans KPEP valide (idkpep vide ou ne commençant pas par 'KPEP').",
+                    "Nombre": 0,
+                    "Pct": 0.0
+                },
+                "F1c_Email_Other_Seulement": {
+                    "definition": "Comptes avec email_other renseigné mais email principal vide (migration incomplète potentielle).",
+                    "Nombre": 1,
+                    "Pct": 0.07
+                },
+                "F1d_Doublons_Email": {
+                    "definition": "Emails rattachés à plusieurs id CIAM distincts (email + email_other confondus).",
+                    "Nb_Emails_Dupliques": 6,
+                    "Nb_Comptes_Concernes": 12,
+                    "Pct_Comptes": 0.87
+                }
+            },
+            "Incoherences_NS_CIAM": {
+                "definition": "Détection des divergences entre New_S et les comptes CIAM rapprochés. G1a — DDN différente. G1b — Nom/prénom divergent (SequenceMatcher < 0.70). G1c — Email valeur_coordonnee NS ≠ email CIAM.",
+                "G1a_DDN_Differente": {
+                    "definition": "Parmi les rapprochés avec DDN renseignée des deux côtés (hors 1900-01-01) : divergence entre date de naissance NS et compte CIAM matché. Indicateur de données périmées non propagées.",
+                    "Base": 1341,
+                    "DDN_Differente": {
+                        "Nombre": 3,
+                        "Pct": 0.22
+                    },
+                    "DDN_Identique": {
+                        "Nombre": 1338,
+                        "Pct": 99.78
+                    }
+                },
+                "G1b_Nom_Prenom_Divergent": {
+                    "definition": "Parmi les rapprochés avec nom renseigné des deux côtés : similarité combinée nom+prénom (SequenceMatcher) < 0.70. Peut indiquer un mauvais rapprochement ou des données sources divergentes.",
+                    "Base": 1343,
+                    "Seuil_Similarite": 0.7,
+                    "Nom_Divergent": {
+                        "Nombre": 183,
+                        "Pct": 13.63
+                    },
+                    "Nom_Coherent": {
+                        "Nombre": 1160,
+                        "Pct": 86.37
+                    }
+                },
+                "G1c_Email_Coord_NS_Different_CIAM": {
+                    "definition": "Parmi les rapprochés ayant un email valeur_coordonnee dans NS : cet email diffère de l'email principal du compte CIAM matché. Signale des données de contact potentiellement périmées dans l'un des référentiels.",
+                    "Base": 1323,
+                    "Email_Different": {
+                        "Nombre": 319,
+                        "Pct": 24.11
+                    },
+                    "Email_Identique": {
+                        "Nombre": 1004,
+                        "Pct": 75.89
+                    }
+                }
+            },
+            "Qualite_NewS": {
+                "A1_Completude_Cles_Rapprochement": {
+                    "definition": "Nombre de personnes uniques (assurés ciblés CIAM) disposant d'au moins une clé de rapprochement : email (mailciam ou valeur_coordonnee), KPEP, ou identité complète.",
+                    "Population_Assures_Uniques": 1369,
+                    "Avec_Au_Moins_Une_Cle": {
+                        "Nombre": 1369,
+                        "Pct": 100.0
+                    },
+                    "Sans_Aucune_Cle": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "Avec_Email": {
+                        "Nombre": 1356,
+                        "Pct": 99.05
+                    },
+                    "Avec_KPEP": {
+                        "Nombre": 1369,
+                        "Pct": 100.0
+                    },
+                    "Avec_Identite_Complete": {
+                        "Nombre": 1369,
+                        "Pct": 100.0
+                    }
+                },
+                "A2_Completude_Champs_NewS": {
+                    "definition": "Taux de remplissage des champs clés dans New_S (assurés, niveau ligne).",
+                    "Base_Lignes_Assures": 1376,
+                    "Champs": {
+                        "mailciam": {
+                            "Rempli": 1330,
+                            "Vide": 46,
+                            "Pct_Rempli": 96.66
+                        },
+                        "idkpep": {
+                            "Rempli": 1376,
+                            "Vide": 0,
+                            "Pct_Rempli": 100.0
+                        },
+                        "date_naissance": {
+                            "Rempli": 1376,
+                            "Vide": 0,
+                            "Pct_Rempli": 100.0
+                        },
+                        "nom": {
+                            "Rempli": 1376,
+                            "Vide": 0,
+                            "Pct_Rempli": 100.0
+                        },
+                        "prenom": {
+                            "Rempli": 1376,
+                            "Vide": 0,
+                            "Pct_Rempli": 100.0
+                        }
+                    }
+                }
+            },
+            "Prospects_CIAM": {
+                "E1a_Comptes_CIAM_Prospects": {
+                    "definition": "Comptes Keycloak (CK/CM) où la date de naissance (birthdate) normalisée = '1900-01-01'. Indique un compte créé sans date de naissance réelle (prospect).",
+                    "Total_Comptes_CIAM_Uniques": 1380,
+                    "Comptes_Prospects": {
+                        "Nombre": 4,
+                        "Pct": 0.29
+                    }
+                },
+                "E1b_Assures_NS_Prospects": {
+                    "definition": "Lignes New_S (assurés AI) où date_naissance normalisée = '1900-01-01'. Indique une date de naissance manquante ou fictive dans la source.",
+                    "Total_Lignes_Assures": 1376,
+                    "Lignes_Prospect": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                }
+            },
+            "Coherence_KPEP_3_Sources": {
+                "definition": "Cohérence stricte du KPEP entre NS (idkpep New_S), CIAM (idkpep Keycloak matché) et IEHE (si une colonne au format KPEP* est détectée dans le fichier IEHE chargé). Normalisation : strip + upper. Matching exact uniquement.",
+                "Base_Rapproches": 1343,
+                "Disponibilite_KPEP": {
+                    "NS_Avec_KPEP": {
+                        "Nombre": 1343,
+                        "Pct": 100.0
+                    },
+                    "CIAM_Avec_KPEP": {
+                        "Nombre": 1343,
+                        "Pct": 100.0
+                    },
+                    "IEHE_Avec_KPEP": {
+                        "Nombre": 1340,
+                        "Pct": 99.78
+                    }
+                },
+                "E2_NS_Egal_CIAM": {
+                    "Nombre": 1337,
+                    "Pct": 99.55,
+                    "definition": "KPEP NS == KPEP CIAM (les deux non-vides). Cohérence parfaite NS/CIAM."
+                },
+                "E2_NS_Different_CIAM": {
+                    "Nombre": 6,
+                    "Pct": 0.45,
+                    "definition": "KPEP NS ≠ KPEP CIAM (les deux non-vides). Potentiel mauvais rapprochement."
+                },
+                "E2_IEHE_Egal_CIAM": {
+                    "Nombre": 1328,
+                    "Pct": 98.88,
+                    "definition": "KPEP IEHE == KPEP CIAM (les deux non-vides)."
+                },
+                "E2_IEHE_Different_CIAM": {
+                    "Nombre": 12,
+                    "Pct": 0.89,
+                    "definition": "KPEP IEHE ≠ KPEP CIAM (les deux non-vides). Incohérence inter-référentiels."
+                },
+                "E2_Coherence_3_Sources_Stricte": {
+                    "Nombre": 1328,
+                    "Pct": 98.88,
+                    "definition": "KPEP NS = KPEP CIAM = KPEP IEHE (les 3 non-vides et identiques). Matching parfait sur les 3 référentiels."
+                }
+            },
+            "Qualite_Emails_Enrichie": {
+                "CIAM_Emails_Keycloak": {
+                    "source": "CIAM (email + email_other)",
+                    "Total_Emails": 1369,
+                    "Invalides": {
+                        "Nombre": 0,
+                        "Pct": 0.0,
+                        "definition": "Email ne respectant pas le format standard (absence '@', domaine invalide, etc.)."
+                    },
+                    "A_Risque": {
+                        "Nombre": 2,
+                        "Pct": 0.15,
+                        "definition": "Email dont le domaine figure dans la liste des domaines à risque (25 domaines : yopmail, gmx, jetable, mailinator…)."
+                    },
+                    "Top_Domaines": {
+                        "gmail.com": 410,
+                        "orange.fr": 92,
+                        "yahoo.fr": 75,
+                        "hotmail.fr": 70,
+                        "laposte.net": 41,
+                        "wanadoo.fr": 34,
+                        "hotmail.com": 28,
+                        "free.fr": 27,
+                        "ac-versailles.fr": 25,
+                        "ac-montpellier.fr": 20
+                    }
+                },
+                "NS_Emails_ValCoord": {
+                    "source": "New_S (valeur_coordonnee)",
+                    "Total_Emails": 1365,
+                    "Invalides": {
+                        "Nombre": 0,
+                        "Pct": 0.0,
+                        "definition": "Email ne respectant pas le format standard (absence '@', domaine invalide, etc.)."
+                    },
+                    "A_Risque": {
+                        "Nombre": 1,
+                        "Pct": 0.07,
+                        "definition": "Email dont le domaine figure dans la liste des domaines à risque (25 domaines : yopmail, gmx, jetable, mailinator…)."
+                    },
+                    "Top_Domaines": {
+                        "gmail.com": 353,
+                        "orange.fr": 82,
+                        "yahoo.fr": 60,
+                        "hotmail.fr": 46,
+                        "ac-versailles.fr": 39,
+                        "laposte.net": 38,
+                        "ac-montpellier.fr": 30,
+                        "wanadoo.fr": 30,
+                        "ac-lyon.fr": 28,
+                        "ac-creteil.fr": 27
+                    }
+                }
+            },
+            "Score_Qualite_Donnees": {
+                "definition": "Score de qualité de données par assuré rapproché. DATA_QUALITY_OK = aucune anomalie parmi : prospect CIAM, incohérence KPEP NS/CIAM, email invalide, email à risque. DATA_QUALITY_KO = au moins 1 critère non conforme.",
+                "Base_Rapproches": 1343,
+                "DATA_QUALITY_OK": {
+                    "Nombre": 1333,
+                    "Pct": 99.26
+                },
+                "DATA_QUALITY_KO": {
+                    "Nombre": 10,
+                    "Pct": 0.74
+                },
+                "Decomposition_KO": {
+                    "KPEP_NS_diff_CIAM": {
+                        "Nombre": 6,
+                        "Pct": 60.0
+                    },
+                    "Prospect_CIAM": {
+                        "Nombre": 2,
+                        "Pct": 20.0
+                    },
+                    "Email_CIAM_risque": {
+                        "Nombre": 2,
+                        "Pct": 20.0
+                    }
+                }
+            }
+        }
+    }
+}

@@ -24,7 +24,21 @@ import pandas as pd
 
 # --- Périmètre TP partagé avec 02_calcul_kpi / 03_generation_fichiers_detail ---
 TYPES_TP_KO = frozenset({"ASSPRI", "MPACTI", "MPRETR", "MPVRET"})
-OFFRES_PREV_NON_ELIGIBLES_KO = frozenset({"INPPREVIND"})
+
+# Offres explicitement non éligibles TP, EN PLUS des préfixes MEP/IND.
+#
+# SOURCE UNIQUE de la liste : `03_generation_fichiers_detail` et
+# `scriptsNewPipline/07_controle_tp_ged` l'importent d'ici. Le script 03 porte un
+# nom débutant par un chiffre, il n'est pas importable — c'est donc ce module,
+# et non lui, qui héberge le périmètre partagé.
+#
+# INSC2SP / INSC2SG : offres que le métier supprimait À LA MAIN chaque matin.
+# Elles passaient toutes les exclusions existantes (elles commencent par « INS »,
+# pas « INP »). Mesuré sur le flux du 16/07/2026 : 46 lignes sur 470 éligibles,
+# soit ~10 % de la population. INSC2SS est regroupée avec les deux autres dans le
+# TCD (`05_generation_tcd.py`) mais n'a PAS été citée par le métier : à trancher
+# avant de l'ajouter ici.
+OFFRES_PREV_NON_ELIGIBLES_KO = frozenset({"INPPREVIND", "INSC2SP", "INSC2SG"})
 TYPES_ASSURES = frozenset({"ASSPRI", "MPACTI", "MPRETR", "MPVRET"})
 
 # --- Alias de colonnes "num_personne" / "type_assure" ------------------------

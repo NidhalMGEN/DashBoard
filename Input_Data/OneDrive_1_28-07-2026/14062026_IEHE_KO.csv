@@ -1,0 +1,5 @@
+﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+14674374;CHATER;Makine;CONJOI;2000-09-12;;;MESMEN001;2026-06-14;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;17062026;;KPEP00001121669406
+14673602;Dupuy;Gilles;CONJOI;1967-06-21;;;MESMEN001;2026-06-14;2026-07-01;010;N;;;Type assuré non éligible (CONJOI);OK;17062026;;KPEP00001121668438
+14673710;IMONT;Jean-Philippe;CONJOI;1974-05-31;;;MESMEN001;2026-06-14;2026-07-01;010;N;;;Type assuré non éligible (CONJOI);OK;17062026;;KPEP00001121668640
+14674615;LUSTREMANT;THIERRY;CONJOI;1959-08-10;;KPEP00000312854103;MESMEN001;2026-06-14;2026-07-01;010;N;;;Type assuré non éligible (CONJOI);OK;17062026;;KPEP00000312854103

@@ -26,7 +26,24 @@
       "Read(//c/Program Files/LibreOffice/program/**)",
       "Bash(python3.exe -c \"import odf; print\\('odfpy OK', odf.__file__\\)\")",
       "Bash(./python/python.exe -c \"import flask; print\\('flask', flask.__version__\\)\")",
-      "Bash(./python/python.exe -c ' *)"
+      "Bash(./python/python.exe -c ' *)",
+      "Bash(./python/python.exe -m py_compile pipeline_runner.py modules/_registry.py modules/pipeline_ged/runner.py modules/pipeline_ged/routes.py app.py)",
+      "Bash(git --no-pager diff -- pipeline_runner.py modules/_registry.py modules/pipeline_ged/runner.py templates/index.html)",
+      "Bash(git --no-pager diff --cached --stat)",
+      "Bash(git --no-pager diff --cached -- pipeline_runner.py)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { $p = Get-Process -Id $conn.OwningProcess; \"PID      : $\\($p.Id\\)\"; \"Name     : $\\($p.ProcessName\\)\"; \"Path     : $\\($p.Path\\)\"; \"Started  : $\\($p.StartTime\\)\"; \"CmdLine  : $\\(\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($p.Id\\)\"\\).CommandLine\\)\" } else { \"Nothing listening on port 5000\" })",
+      "Bash(grep -n \"to_csv\\\\|to_excel\\\\|open\\(\\\\|\\\\.write\\(\\\\|OUTPUT_DIR /\\\\|output_dir /\\\\|\\\\.csv\\\\\"\\\\|\\\\.csv'\\\\|_KO\\\\|_Detail\" scriptsNewPipline/07_controle_tp_ged.py)",
+      "Bash(grep -n \"to_csv\\\\|to_excel\\\\|open\\(\\\\|\\\\.write\\(\\\\|OUTPUT_DIR /\\\\|output_dir /\\\\|\\\\.csv\\\\\"\\\\|\\\\.csv'\\\\|_KO\\\\|_Detail\" scriptsNewPipline/08_ged_retry.py)",
+      "Bash(grep -n \"if \\(\\\\s*$\" -A 6 Scripts/03_generation_fichiers_detail.py)",
+      "Bash(grep -n \"sys.exit\\\\|return$\\\\|❌\" Scripts/03_generation_fichiers_detail.py)",
+      "Bash(awk -F: '$1>700 && $1<1000')",
+      "Bash(awk -F: '$1>700 && $1<900')",
+      "Bash(./python/python.exe -m py_compile pipeline_runner.py modules/pipeline_ged/runner.py)",
+      "Bash(python -c \"import ast,sys; ast.parse\\(open\\('Scripts/suivi_carte_tp_db.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK syntax'\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('Scripts/02_calcul_kpi.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scriptsNewPipline/07_controle_tp_ged.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scriptsNewPipline/08_ged_retry.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "\\tmp"

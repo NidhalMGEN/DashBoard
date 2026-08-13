@@ -44,6 +44,10 @@ THRESHOLDS = {
     "score_qualite":       {"green": 99.0, "orange": 97.0, "higher_is_better": True},
     "taux_eligibilite_tp": {"green": 50.0, "orange": 20.0, "higher_is_better": True},
     "taux_ged":            {"green": 50.0, "orange": 10.0, "higher_is_better": True},
+    # Indicateur contractuel : MGEN est pénalisée (appels d'offres) quand une
+    # carte n'est pas en GED sous 4 jours. Le niveau vert doit être celui de
+    # l'engagement — 95 % est un PLACEHOLDER, à confirmer avec le métier.
+    "taux_ged_4_jours":    {"green": 95.0, "orange": 85.0, "higher_is_better": True},
 }
 
 # Chemins d'extraction dans le payload JSON (alignés sur report_generator).
@@ -62,13 +66,34 @@ _KPI_PATHS = {
     "ged_recus":           ["7_Carte_TP", "Controle_GED_Quotidien", "Total_Cartes", "Nombre"],
     "ged_trouves":         ["7_Carte_TP", "Controle_GED_Quotidien", "Trouves_GED", "Nombre"],
     "ged_ko":              ["7_Carte_TP", "Controle_GED_Quotidien", "Non_Trouves_GED", "Nombre"],
+
+    # --- Délais GED : l'indicateur contractuel et ses restes ---
+    # Cohorte = MOIS D'ÉLIGIBILITÉ (pas le flux). Un flux du 16 juillet contient
+    # des cartes dues en juillet et d'autres en septembre : les regrouper par
+    # flux mélangerait deux engagements distincts.
+    "taux_ged_4_jours":    ["7_Carte_TP", "Delais_GED", "Dans_les_4_jours", "Taux"],
+    "ged_4_jours":         ["7_Carte_TP", "Delais_GED", "Dans_les_4_jours", "Nombre"],
+    "cartes_attendues":    ["7_Carte_TP", "Delais_GED", "Population_Attendue"],
+    "delai_ged_median":    ["7_Carte_TP", "Delais_GED", "Distribution_Delai", "Median"],
+
+    # --- État à date, backlog compris (tuiles opérationnelles) ---
+    # Portée différente des précédentes : ce sont des photos de l'instant, tous
+    # mois d'éligibilité confondus. Le suffixe _a_date le rappelle, pour qu'on
+    # n'additionne pas un volume de flux et un encours.
+    "cartes_attendues_a_date": ["7_Carte_TP", "Delais_GED", "Etat_A_Date",
+                                "Cartes_Attendues_A_Date"],
+    "absents_iehe_a_date":     ["7_Carte_TP", "Delais_GED", "Etat_A_Date", "Absents_IEHE"],
+    "en_attente_ged_a_date":   ["7_Carte_TP", "Delais_GED", "Etat_A_Date", "En_Attente_GED"],
+    "cartes_futures":          ["7_Carte_TP", "Delais_GED", "Etat_A_Date", "Cartes_Futures"],
 }
 
 # KPIs disposant d'un drill-down (ventilation détaillée + export Excel).
 # Défini ici, en tête, car référencé par build_dashboard (lisibilité / tests).
 DRILLABLE_KPIS = {"non_rapproches", "taux_matching_ciam", "score_qualite",
                   "manquants_iehe", "taux_eligibilite_tp", "eligibles_tp",
-                  "taux_ged", "ged_recus"}
+                  "taux_ged", "ged_recus",
+                  "taux_ged_4_jours", "cartes_attendues",
+                  "absents_iehe_a_date", "en_attente_ged_a_date"}
 
 
 # Cache des moteurs par DSN : préserve le pool de connexions SQLAlchemy et
@@ -1117,7 +1142,12 @@ def build_dashboard(limit: int = 30) -> dict:
 # -----------------------------------------------------------------------
 
 GED_SCHEMA = "rptpsc"
-GED_TABLE = "suivi_tp_ged"
+# `suivi_carte_tp` et non plus `suivi_tp_ged` : une seule table porte l'état des
+# cartes. L'ancienne était alimentée en double par les scripts 07/08 uniquement
+# pour cette courbe ; les deux pouvaient diverger, et c'est l'ancienne qui
+# s'affichait. Colonne de solde : `date_found_ged` (ex-`date_found`).
+GED_TABLE = "suivi_carte_tp"
+GED_COL_FOUND = "date_found_ged"
 
 
 def _business_days(n: int, end: datetime.date | None = None) -> list:
@@ -1148,6 +1178,116 @@ def _business_days_from(start: datetime.date, n: int,
     return days
 
 
+# =============================================================================
+# DÉLAIS GED — sélection par mois ou par date d'éligibilité
+# =============================================================================
+#
+# Ce bloc NE réécrit PAS le calcul : il appelle `suivi_carte_tp_db.fetch_tp_stats`,
+# la même fonction que le script 02. C'est délibéré. Le dépôt portait jusqu'ici
+# la règle d'éligibilité en trois exemplaires légèrement différents ; dupliquer
+# ici le calcul des délais recréerait exactement ce problème, avec un dashboard
+# qui finirait par afficher un autre chiffre que le JSON KPI.
+#
+# Contrairement au reste du module (SQLAlchemy sur output_kpi_json), on lit donc
+# `rptpsc.suivi_carte_tp` via psycopg, à travers ce module partagé.
+
+def _carte_tp_db():
+    """Import paresseux de `Scripts/suivi_carte_tp_db.py`. `None` si absent.
+
+    Paresseux et non en tête de fichier : le dashboard doit rester chargeable
+    même si Scripts/ n'est pas sur le PYTHONPATH (déploiement partiel), auquel
+    cas seul ce bloc est indisponible.
+    """
+    try:
+        import suivi_carte_tp_db  # type: ignore
+        return suivi_carte_tp_db
+    except ImportError:
+        pass
+    try:
+        import sys
+        from pathlib import Path
+        scripts_dir = str(Path(__file__).resolve().parents[2] / "Scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import suivi_carte_tp_db  # type: ignore
+        return suivi_carte_tp_db
+    except Exception:
+        return None
+
+
+def delais_ged_periodes() -> dict:
+    """Amplitude des dates d'éligibilité en base, pour borner le sélecteur."""
+    mod = _carte_tp_db()
+    if mod is None:
+        return {"available": False, "error": "Module suivi_carte_tp_db introuvable.",
+                "min": None, "max": None, "mois": [], "total": 0}
+    conn = mod.connect_supervision()
+    if conn is None:
+        return {"available": False, "error": "Base supervision injoignable.",
+                "min": None, "max": None, "mois": [], "total": 0}
+    try:
+        p = mod.fetch_periodes(conn)
+        if not p.get("total"):
+            return {"available": False,
+                    "error": "La table suivi_carte_tp est vide. "
+                             "Lancez le script 03 sur un flux.", **p}
+        return {"available": True, "error": None, **p}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def delais_ged(debut: str | None = None, fin: str | None = None) -> dict:
+    """Bloc Délais GED recalculé pour la période demandée.
+
+    `debut` / `fin` ("YYYY-MM-DD", bornes incluses). Une seule journée =
+    `debut == fin`. Sans argument, le mois courant. La cohorte porte TOUJOURS
+    sur `date_eligibilite` — jamais sur le flux : un flux du 16 juillet contient
+    des cartes dues en juillet et d'autres en septembre.
+    """
+    mod = _carte_tp_db()
+    if mod is None:
+        return {"available": False, "error": "Module suivi_carte_tp_db introuvable."}
+    conn = mod.connect_supervision()
+    if conn is None:
+        return {"available": False, "error": "Base supervision injoignable."}
+    try:
+        stats = mod.fetch_tp_stats(conn, debut or None, fin or None)
+        if not stats:
+            return {"available": False,
+                    "error": "La table suivi_carte_tp est vide.",
+                    "cohorte": ""}
+        # Cohorte vide : `fetch_tp_stats` renvoie légitimement des zéros, mais à
+        # l'écran « 0 carte attendue » ne se distingue pas d'un calcul cassé.
+        #
+        # On le signale donc par un `notice` — SANS passer `available` à False.
+        # Le faire masquait tout le bloc, y compris les indicateurs qui ne
+        # dépendent PAS de la période et restent parfaitement valides : la photo
+        # du flux exécuté (`Flux_Courant`, relative à CURRENT_DATE), le stock de
+        # KO antérieur (cumul borné par `fin` seulement) et l'état à date
+        # (`Etat_A_Date`, toute la table). Une journée sans échéance est le cas
+        # courant — week-ends, jours creux — et n'a aucune raison de vider
+        # l'écran.
+        if not stats.get("Population_Attendue"):
+            return {"available": True, "error": None, "stats": stats,
+                    "notice": f"Aucune carte dont la date d'éligibilité tombe "
+                              f"entre le {stats.get('Date_Debut','')} et le "
+                              f"{stats.get('Date_Fin','')} : les indicateurs de "
+                              f"période sont vides. Les compteurs hors période "
+                              f"restent affichés.",
+                    "cohorte": stats.get("Cohorte", "")}
+        return {"available": True, "error": None, "stats": stats}
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def ged_flux_list() -> dict:
     """Flux présents dans la table de suivi GED (≠ flux_list(), qui liste les
     flux KPI : tous les flux KPI n'ont pas forcément de population TP GED)."""
@@ -1155,8 +1295,9 @@ def ged_flux_list() -> dict:
         from sqlalchemy import text
         with _engine().connect() as conn:
             rows = conn.execute(text(
-                f"SELECT flux_id, count(*) AS tot, count(date_found) AS ok "
+                f"SELECT flux_id, count(*) AS tot, count({GED_COL_FOUND}) AS ok "
                 f"FROM {GED_SCHEMA}.{GED_TABLE} "
+                f"WHERE flux_id IS NOT NULL "
                 f"GROUP BY flux_id "
                 f"ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC"
             )).fetchall()
@@ -1184,6 +1325,7 @@ def ged_ok_ko_timeline(flux_id: str | None = None, days: int = 30) -> dict:
             if not flux_id:
                 row = conn.execute(text(
                     f"SELECT flux_id FROM {GED_SCHEMA}.{GED_TABLE} "
+                    f"WHERE flux_id IS NOT NULL "
                     f"ORDER BY TO_DATE(flux_id, 'DDMMYYYY') DESC LIMIT 1"
                 )).fetchone()
                 if not row:
@@ -1192,7 +1334,7 @@ def ged_ok_ko_timeline(flux_id: str | None = None, days: int = 30) -> dict:
                             "reason": "Aucun flux dans le suivi TP GED."}
                 flux_id = row[0]
             rows = conn.execute(text(
-                f"SELECT date_found FROM {GED_SCHEMA}.{GED_TABLE} WHERE flux_id = :fid"
+                f"SELECT {GED_COL_FOUND} FROM {GED_SCHEMA}.{GED_TABLE} WHERE flux_id = :fid"
             ), {"fid": flux_id}).fetchall()
     except Exception as exc:
         return {"available": False, "error": str(exc), "flux_id": flux_id,

@@ -1,0 +1,3 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿NS_num_personne;NS_nom_long;NS_prenom;NS_type_assure;NS_date_naissance;NS_valeur_coordonnee;NS_idkpep;NS_offre;NS_date_adhesion;NS_date_effet_adhesion;NS_code_soc_appart;Eligibilité TP;Date éligibilité TP;Valeur carte TP;Raison non Eligibilité;statut_retry;date_derniere_verif;mail_IEHE;KPEP_IEHE
+14546287;BADIER;JEAN-MICHE;ASSPRI;1962-01-04;jean-michel.badier@univ-amu.fr;KPEP00000134823232;INPPREVIND;2026-05-30;2026-05-01;010;N;;;Offre PREV exclue;OK;10062026;jean-michel.badier@univ-amu.fr;KPEP00000134823232
+14547040;FRAQUET;NICOLAS;CONJOI;1981-04-03;;;MESMEN001;2026-05-30;2026-05-01;010;N;;;Type assuré non éligible (CONJOI);OK;03062026;;KPEP00001120747325

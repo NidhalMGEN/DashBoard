@@ -1,0 +1,1007 @@
+{
+    "Fichier_Principal": "16042026_New_S.csv",
+    "Prefixe_Execution": "16042026",
+    "Metadata": {
+        "Date_Execution": "2026-08-03 12:04:42",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "6_IEHE": {
+        "definition": "Indicateurs relatifs au référentiel IEHE (iehe.refkpep) : présence, segmentation par type d'assuré et qualité du référentiel.",
+        "Presence_Globale": {
+            "definition": "Présence dans le référentiel IEHE. Population de référence = toutes personnes uniques du flux (assurés + conjoints), jointure sur num_personne = refperboccn.",
+            "Presents_IEHE": {
+                "Nombre": 43279,
+                "Taux": 100.0
+            },
+            "Manquants_IEHE": {
+                "Nombre": 1,
+                "Taux": 0.0,
+                "dont_Assures": 1,
+                "dont_Conjoints": 0
+            }
+        },
+        "Ecart_Lignes_vs_Personnes": {
+            "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques (KPI). Une même personne peut apparaître sur plusieurs contrats : le KPI dédoublonne par num_personne, le comptage par lignes ne dédoublonne pas. Le delta = nombre de contrats supplémentaires liés aux personnes multi-contrats.",
+            "Total_Flux": {
+                "Lignes": 43519,
+                "Personnes_Uniques": 43280,
+                "Delta_Doublons": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 43455,
+                        "Personnes_Uniques": 43216,
+                        "Delta_Doublons": 239,
+                        "Assures_Non_Crees_IEHE_Et_Eligibles_TP": 1,
+                        "Nb_Eligibles_Carte_TP": 11361
+                    },
+                    "CONJOI": {
+                        "Lignes": 63,
+                        "Personnes_Uniques": 63,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Manquants_IEHE": {
+                "Lignes": 1,
+                "Personnes_Uniques": 1,
+                "Delta_Doublons": 0,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "CONJOI": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 0,
+                        "Personnes_Uniques": 0,
+                        "Delta_Doublons": 0
+                    }
+                }
+            }
+        },
+        "Annexe": {
+            "Presents_IEHE": {
+                "Lignes": 43518,
+                "Personnes_Uniques": 43279,
+                "Delta_Doublons": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Lignes": 43454,
+                        "Personnes_Uniques": 43215,
+                        "Delta_Doublons": 239
+                    },
+                    "CONJOI": {
+                        "Lignes": 63,
+                        "Personnes_Uniques": 63,
+                        "Delta_Doublons": 0
+                    },
+                    "MPORHA": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    }
+                }
+            },
+            "Doublons_Personnes_Multi_Contrats": {
+                "definition": "Personnes (num_personne) apparaissant sur plusieurs contrats dans le flux. Chaque contrat supplémentaire augmente le comptage-lignes sans augmenter le comptage-personnes.",
+                "Nombre_Personnes": 239,
+                "Par_Type_Assure": {
+                    "ASSPRI": 239
+                },
+                "Exemples_Top_5": [
+                    {
+                        "num_personne": "4512829",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "6063172",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "2909746",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "10768004",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    },
+                    {
+                        "num_personne": "13071218",
+                        "type_assure": "ASSPRI",
+                        "nb_contrats": 2
+                    }
+                ]
+            },
+            "Retry_IEHE_KO": {
+                "Source": "rptpsc.suivi_iehe (base supervision)",
+                "Totaux": {
+                    "Total_KO_Initial": 13599,
+                    "Resolus_Apres_Retry": 13599,
+                    "Encore_KO": 0,
+                    "Taux_Resolution": 100.0,
+                    "Fichiers_Traites": 73
+                },
+                "Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Total_KO_Initial": 11960,
+                        "Resolus_Apres_Retry": 11960,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "CONJOI": {
+                        "Total_KO_Initial": 1512,
+                        "Resolus_Apres_Retry": 1512,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPACTI": {
+                        "Total_KO_Initial": 35,
+                        "Resolus_Apres_Retry": 35,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPASSO": {
+                        "Total_KO_Initial": 57,
+                        "Resolus_Apres_Retry": 57,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPCTA": {
+                        "Total_KO_Initial": 26,
+                        "Resolus_Apres_Retry": 26,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPORHA": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 1,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPORP": {
+                        "Total_KO_Initial": 7,
+                        "Resolus_Apres_Retry": 7,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "MPRETR": {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 1,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    }
+                },
+                "Par_Eligibilite_TP": {
+                    "Eligible_TP": {
+                        "Total_KO_Initial": 2799,
+                        "Resolus_Apres_Retry": 2799,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "Future_TP": {
+                        "Total_KO_Initial": 492,
+                        "Resolus_Apres_Retry": 492,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    },
+                    "Hors_Perimetre_TP": {
+                        "Total_KO_Initial": 10308,
+                        "Resolus_Apres_Retry": 10308,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0
+                    }
+                },
+                "Detail_Par_Fichier": [
+                    {
+                        "Total_KO_Initial": 427,
+                        "Resolus_Apres_Retry": 427,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "05112025",
+                        "Date_Derniere_Verification": "03082026"
+                    },
+                    {
+                        "Total_KO_Initial": 806,
+                        "Resolus_Apres_Retry": 806,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "06112025",
+                        "Date_Derniere_Verification": "03082026"
+                    },
+                    {
+                        "Total_KO_Initial": 785,
+                        "Resolus_Apres_Retry": 785,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "09042026",
+                        "Date_Derniere_Verification": "22042026"
+                    },
+                    {
+                        "Total_KO_Initial": 732,
+                        "Resolus_Apres_Retry": 732,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "10042026",
+                        "Date_Derniere_Verification": "28042026"
+                    },
+                    {
+                        "Total_KO_Initial": 195,
+                        "Resolus_Apres_Retry": 195,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "11042026",
+                        "Date_Derniere_Verification": "22042026"
+                    },
+                    {
+                        "Total_KO_Initial": 255,
+                        "Resolus_Apres_Retry": 255,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "12042026",
+                        "Date_Derniere_Verification": "22042026"
+                    },
+                    {
+                        "Total_KO_Initial": 854,
+                        "Resolus_Apres_Retry": 854,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "13042026",
+                        "Date_Derniere_Verification": "22042026"
+                    },
+                    {
+                        "Total_KO_Initial": 2468,
+                        "Resolus_Apres_Retry": 2468,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "14042026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 902,
+                        "Resolus_Apres_Retry": 902,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "15042026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 101,
+                        "Resolus_Apres_Retry": 101,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "16042026",
+                        "Date_Derniere_Verification": "07072026"
+                    },
+                    {
+                        "Total_KO_Initial": 32,
+                        "Resolus_Apres_Retry": 32,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "17042026",
+                        "Date_Derniere_Verification": "04072026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "19042026",
+                        "Date_Derniere_Verification": "22042026"
+                    },
+                    {
+                        "Total_KO_Initial": 5,
+                        "Resolus_Apres_Retry": 5,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "20042026",
+                        "Date_Derniere_Verification": "11062026"
+                    },
+                    {
+                        "Total_KO_Initial": 5,
+                        "Resolus_Apres_Retry": 5,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "21042026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 34,
+                        "Resolus_Apres_Retry": 34,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "22042026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 31,
+                        "Resolus_Apres_Retry": 31,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "23042026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 104,
+                        "Resolus_Apres_Retry": 104,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "24042026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 15,
+                        "Resolus_Apres_Retry": 15,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "26042026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 54,
+                        "Resolus_Apres_Retry": 54,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "27042026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 85,
+                        "Resolus_Apres_Retry": 85,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "28042026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 40,
+                        "Resolus_Apres_Retry": 40,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "29042026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 2,
+                        "Resolus_Apres_Retry": 2,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "01052026",
+                        "Date_Derniere_Verification": "06052026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "02052026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 5,
+                        "Resolus_Apres_Retry": 5,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "03052026",
+                        "Date_Derniere_Verification": "06052026"
+                    },
+                    {
+                        "Total_KO_Initial": 27,
+                        "Resolus_Apres_Retry": 27,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "04052026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 121,
+                        "Resolus_Apres_Retry": 121,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "05052026",
+                        "Date_Derniere_Verification": "14052026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "09052026",
+                        "Date_Derniere_Verification": "13052026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "10052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 159,
+                        "Resolus_Apres_Retry": 159,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "11052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 20,
+                        "Resolus_Apres_Retry": 20,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "12052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "13052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 27,
+                        "Resolus_Apres_Retry": 27,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "14052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 205,
+                        "Resolus_Apres_Retry": 205,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "15052026",
+                        "Date_Derniere_Verification": "03082026"
+                    },
+                    {
+                        "Total_KO_Initial": 3,
+                        "Resolus_Apres_Retry": 3,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "17052026",
+                        "Date_Derniere_Verification": "20052026"
+                    },
+                    {
+                        "Total_KO_Initial": 9,
+                        "Resolus_Apres_Retry": 9,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "18052026",
+                        "Date_Derniere_Verification": "27052026"
+                    },
+                    {
+                        "Total_KO_Initial": 7,
+                        "Resolus_Apres_Retry": 7,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "20052026",
+                        "Date_Derniere_Verification": "11062026"
+                    },
+                    {
+                        "Total_KO_Initial": 166,
+                        "Resolus_Apres_Retry": 166,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "21052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 70,
+                        "Resolus_Apres_Retry": 70,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "22052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 1938,
+                        "Resolus_Apres_Retry": 1938,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "26052026",
+                        "Date_Derniere_Verification": "03072026"
+                    },
+                    {
+                        "Total_KO_Initial": 156,
+                        "Resolus_Apres_Retry": 156,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "27052026",
+                        "Date_Derniere_Verification": "03072026"
+                    },
+                    {
+                        "Total_KO_Initial": 180,
+                        "Resolus_Apres_Retry": 180,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "28052026",
+                        "Date_Derniere_Verification": "03072026"
+                    },
+                    {
+                        "Total_KO_Initial": 190,
+                        "Resolus_Apres_Retry": 190,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "29052026",
+                        "Date_Derniere_Verification": "03072026"
+                    },
+                    {
+                        "Total_KO_Initial": 2,
+                        "Resolus_Apres_Retry": 2,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "30052026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "31052026",
+                        "Date_Derniere_Verification": "03062026"
+                    },
+                    {
+                        "Total_KO_Initial": 187,
+                        "Resolus_Apres_Retry": 187,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "01062026",
+                        "Date_Derniere_Verification": "30062026"
+                    },
+                    {
+                        "Total_KO_Initial": 205,
+                        "Resolus_Apres_Retry": 205,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "02062026",
+                        "Date_Derniere_Verification": "03072026"
+                    },
+                    {
+                        "Total_KO_Initial": 221,
+                        "Resolus_Apres_Retry": 221,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "03062026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 274,
+                        "Resolus_Apres_Retry": 274,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "04062026",
+                        "Date_Derniere_Verification": "06062026"
+                    },
+                    {
+                        "Total_KO_Initial": 233,
+                        "Resolus_Apres_Retry": 233,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "05062026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 33,
+                        "Resolus_Apres_Retry": 33,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "06062026",
+                        "Date_Derniere_Verification": "10062026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "07062026",
+                        "Date_Derniere_Verification": "03082026"
+                    },
+                    {
+                        "Total_KO_Initial": 238,
+                        "Resolus_Apres_Retry": 238,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "08062026",
+                        "Date_Derniere_Verification": "11062026"
+                    },
+                    {
+                        "Total_KO_Initial": 14,
+                        "Resolus_Apres_Retry": 14,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "10062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 18,
+                        "Resolus_Apres_Retry": 18,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "11062026",
+                        "Date_Derniere_Verification": "13062026"
+                    },
+                    {
+                        "Total_KO_Initial": 39,
+                        "Resolus_Apres_Retry": 39,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "12062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 14,
+                        "Resolus_Apres_Retry": 14,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "13062026",
+                        "Date_Derniere_Verification": "17062026"
+                    },
+                    {
+                        "Total_KO_Initial": 4,
+                        "Resolus_Apres_Retry": 4,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "14062026",
+                        "Date_Derniere_Verification": "17062026"
+                    },
+                    {
+                        "Total_KO_Initial": 96,
+                        "Resolus_Apres_Retry": 96,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "15062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 105,
+                        "Resolus_Apres_Retry": 105,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "16062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 108,
+                        "Resolus_Apres_Retry": 108,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "19062026",
+                        "Date_Derniere_Verification": "23062026"
+                    },
+                    {
+                        "Total_KO_Initial": 90,
+                        "Resolus_Apres_Retry": 90,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "23062026",
+                        "Date_Derniere_Verification": "10072026"
+                    },
+                    {
+                        "Total_KO_Initial": 26,
+                        "Resolus_Apres_Retry": 26,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "24062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 116,
+                        "Resolus_Apres_Retry": 116,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "25062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 95,
+                        "Resolus_Apres_Retry": 95,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "26062026",
+                        "Date_Derniere_Verification": "10072026"
+                    },
+                    {
+                        "Total_KO_Initial": 71,
+                        "Resolus_Apres_Retry": 71,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "29062026",
+                        "Date_Derniere_Verification": "10072026"
+                    },
+                    {
+                        "Total_KO_Initial": 31,
+                        "Resolus_Apres_Retry": 31,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "30062026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 2,
+                        "Resolus_Apres_Retry": 2,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "01072026",
+                        "Date_Derniere_Verification": "07072026"
+                    },
+                    {
+                        "Total_KO_Initial": 16,
+                        "Resolus_Apres_Retry": 16,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "02072026",
+                        "Date_Derniere_Verification": "09072026"
+                    },
+                    {
+                        "Total_KO_Initial": 91,
+                        "Resolus_Apres_Retry": 91,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "03072026",
+                        "Date_Derniere_Verification": "07072026"
+                    },
+                    {
+                        "Total_KO_Initial": 1,
+                        "Resolus_Apres_Retry": 1,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "04072026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 5,
+                        "Resolus_Apres_Retry": 5,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "05072026",
+                        "Date_Derniere_Verification": "08072026"
+                    },
+                    {
+                        "Total_KO_Initial": 10,
+                        "Resolus_Apres_Retry": 10,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "06072026",
+                        "Date_Derniere_Verification": "09072026"
+                    },
+                    {
+                        "Total_KO_Initial": 11,
+                        "Resolus_Apres_Retry": 11,
+                        "Encore_KO": 0,
+                        "Taux_Resolution": 100.0,
+                        "Flux": "11072026",
+                        "Date_Derniere_Verification": "16072026"
+                    }
+                ]
+            },
+            "Detail_Par_Type_Assure": {
+                "definition": "Détail IEHE par type d'assuré et corrélations avec l'éligibilité TP.",
+                "Population_Ref_Par_Type_Assure": {
+                    "ASSPRI": 43216,
+                    "CONJOI": 63,
+                    "MPORHA": 1
+                },
+                "Presents_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 43215,
+                    "CONJOI": 63,
+                    "MPORHA": 1
+                },
+                "Manquants_IEHE_Par_Type_Assure": {
+                    "ASSPRI": 1,
+                    "CONJOI": 0,
+                    "MPORHA": 0
+                },
+                "Correlation_TP_Par_Type_Assure": {
+                    "ASSPRI": {
+                        "Presents_IEHE": {
+                            "TP_Valide": 11360,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 4
+                        },
+                        "Manquants_IEHE": {
+                            "TP_Valide": 1,
+                            "TP_Non_Eligible": 0,
+                            "TP_Futur": 0
+                        }
+                    }
+                },
+                "Totaux_TP_Presents_IEHE": {
+                    "TP_Valide": 11360,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 4
+                },
+                "Totaux_TP_Manquants_IEHE": {
+                    "TP_Valide": 1,
+                    "TP_Non_Eligible": 0,
+                    "TP_Futur": 0
+                },
+                "Ecart_Lignes_vs_Personnes": {
+                    "definition": "Raison du delta entre comptage par lignes-contrat (NS_IEHE.csv) et par personnes uniques pour les KPI de l'annexe IEHE. Mêmes principes que 6_IEHE.Ecart_Lignes_vs_Personnes : une personne peut avoir plusieurs contrats → +1 ligne par contrat supplémentaire.",
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP": {
+                        "Lignes": 1,
+                        "Personnes_Uniques": 1,
+                        "Delta_Doublons": 0
+                    },
+                    "Assures_Non_Crees_IEHE_Et_Eligibles_TP_Par_Type": {
+                        "ASSPRI": {
+                            "Lignes": 1,
+                            "Personnes_Uniques": 1,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Correlation_TP_Par_Type_Assure": {
+                        "ASSPRI": {
+                            "Presents_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 11410,
+                                    "Personnes_Uniques": 11360,
+                                    "Delta_Doublons": 50
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 4,
+                                    "Personnes_Uniques": 4,
+                                    "Delta_Doublons": 0
+                                }
+                            },
+                            "Manquants_IEHE": {
+                                "TP_Valide": {
+                                    "Lignes": 1,
+                                    "Personnes_Uniques": 1,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Non_Eligible": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                },
+                                "TP_Futur": {
+                                    "Lignes": 0,
+                                    "Personnes_Uniques": 0,
+                                    "Delta_Doublons": 0
+                                }
+                            }
+                        }
+                    },
+                    "Totaux_TP_Presents_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 11410,
+                            "Personnes_Uniques": 11360,
+                            "Delta_Doublons": 50
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 4,
+                            "Personnes_Uniques": 4,
+                            "Delta_Doublons": 0
+                        }
+                    },
+                    "Totaux_TP_Manquants_IEHE": {
+                        "TP_Valide": {
+                            "Lignes": 1,
+                            "Personnes_Uniques": 1,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Non_Eligible": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        },
+                        "TP_Futur": {
+                            "Lignes": 0,
+                            "Personnes_Uniques": 0,
+                            "Delta_Doublons": 0
+                        }
+                    }
+                }
+            },
+            "Qualite_Referentiel": {
+                "definition": "Indicateurs de qualité du référentiel IEHE et de cohérence avec les autres sources. D1 — Complétude email IEHE (adrmailctc). D2 — Concordance email IEHE vs CIAM (rapprochés présents en IEHE). D3 — Concordance société IEHE vs New_S (socappr vs code_soc_appart).",
+                "D1_Completude_Email_IEHE": {
+                    "definition": "Présence de l'email de contact (adrmailctc) dans le référentiel IEHE.",
+                    "Population_IEHE": 43279,
+                    "Email_Rempli": {
+                        "Nombre": 43210,
+                        "Pct": 99.84
+                    },
+                    "Email_Vide": {
+                        "Nombre": 69,
+                        "Pct": 0.16
+                    }
+                },
+                "D2_Concordance_Email_IEHE_CIAM": {
+                    "definition": "Concordance entre l'email IEHE (adrmailctc) et l'email du compte CIAM matché, pour les assurés rapprochés présents dans IEHE.",
+                    "Base_Rapproches_Presents_IEHE": 43211,
+                    "Emails_Identiques": {
+                        "Nombre": 28826,
+                        "Pct": 66.71
+                    },
+                    "Emails_Differents": {
+                        "Nombre": 14308,
+                        "Pct": 33.11
+                    },
+                    "IEHE_Vide_CIAM_Present": {
+                        "Nombre": 6,
+                        "Pct": 0.01
+                    },
+                    "CIAM_Vide_IEHE_Present": {
+                        "Nombre": 69,
+                        "Pct": 0.16
+                    },
+                    "Deux_Vides": {
+                        "Nombre": 2,
+                        "Pct": 0.0
+                    }
+                },
+                "D3_Concordance_Societe_IEHE_NS": {
+                    "definition": "Concordance entre socappr (IEHE) et code_soc_appart (New_S), par personne (jointure sur refperboccn = num_personne).",
+                    "Base_Personnes_IEHE": 43279,
+                    "Societes_Identiques": {
+                        "Nombre": 43278,
+                        "Pct": 100.0
+                    },
+                    "Societes_Differentes": {
+                        "Nombre": 1,
+                        "Pct": 0.0
+                    },
+                    "IEHE_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    },
+                    "NS_Soc_Vide": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                },
+                "J1b_Potentiel_Enrichissement_CIAM": {
+                    "definition": "Parmi les rapprochés présents dans IEHE : email IEHE renseigné mais absent ou différent dans CIAM → potentiel d'enrichissement. = CIAM_Vide_IEHE_Present + Emails_Differents.",
+                    "Base": 43211,
+                    "Potentiel_Enrichissement": {
+                        "Nombre": 14377,
+                        "Pct": 33.27
+                    },
+                    "Dont_CIAM_Vide": {
+                        "Nombre": 69
+                    },
+                    "Dont_Email_Different": {
+                        "Nombre": 14308
+                    }
+                },
+                "J1c_Emails_IEHE_Invalides": {
+                    "definition": "Parmi les emails IEHE (adrmailctc) renseignés : emails au format invalide (ne respectant pas la syntaxe standard).",
+                    "Base_Emails_Remplis": 43210,
+                    "Emails_Invalides": {
+                        "Nombre": 0,
+                        "Pct": 0.0
+                    }
+                }
+            }
+        }
+    }
+}

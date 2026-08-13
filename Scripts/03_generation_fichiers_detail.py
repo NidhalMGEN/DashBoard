@@ -67,6 +67,13 @@ try:
 except ImportError:  # pragma: no cover
     suivi_iehe_db = None
 
+# État vivant des cartes TP attendues (rptpsc.suivi_carte_tp). Même import
+# tolérant : sans la base, les CSV restent produits à l'identique.
+try:
+    import suivi_carte_tp_db
+except ImportError:  # pragma: no cover
+    suivi_carte_tp_db = None
+
 
 # -----------------------------
 # CONFIG
@@ -84,8 +91,28 @@ TYPES_ASSURES_AI = ["ASSPRI", "MPRETR", "MPVRET", "MPACTI"]
 # Types assurés éligibles carte TP
 TYPES_TP = ["ASSPRI", "MPACTI", "MPRETR", "MPVRET"]
 
-# Offres PREV explicitement non éligibles TP (en plus des préfixes MEP/IND)
-OFFRES_PREV_NON_ELIGIBLES = {"INPPREVIND"}
+# Offres PREV explicitement non éligibles TP (en plus des préfixes MEP/IND).
+# La liste vit dans `iehe_ko_lib` : c'est le seul des trois fichiers portant
+# cette règle qui soit importable (03 et 07 commencent par un chiffre). Le repli
+# ci-dessous ne sert qu'à un lancement hors PYTHONPATH ; il doit rester
+# synchronisé avec l'original.
+try:
+    from iehe_ko_lib import OFFRES_PREV_NON_ELIGIBLES_KO as OFFRES_PREV_NON_ELIGIBLES
+except ImportError:  # pragma: no cover
+    OFFRES_PREV_NON_ELIGIBLES = frozenset({"INPPREVIND", "INSC2SP", "INSC2SG"})
+
+# Mode de calcul de la date d'éligibilité alimentant `rptpsc.suivi_carte_tp`.
+#
+# `effet_minus_21` est le SEUL mode capable de piloter un backlog : il donne à
+# chaque carte sa propre date d'échéance. `adh_plus_21`, l'autre mode disponible,
+# renvoie une date UNIQUE pour tout un flux (`date_adhesion` valant la date du
+# flux pour chaque ligne : 43 519 lignes du flux du 16/04 toutes dues le 07/05).
+# Il ne sait pas exprimer « cette carte est due en septembre ».
+#
+# Les fichiers NS_CIAM et IEHE_KO gardent `adh_plus_21` pour ne pas déplacer les
+# statistiques Retry_IEHE_KO existantes. `Input_Data/important.txt` annonce que
+# la règle métier change : cette constante est le point d'entrée unique.
+ELIGIBILITY_MODE_CARTE_TP = "effet_minus_21"
 
 
 
@@ -1083,6 +1110,78 @@ def main() -> None:
                         pass
             else:
                 print("   [WARN] Suivi BDD indisponible : seul le CSV IEHE_KO est produit.")
+
+        # --- Suivi BDD : alimentation de rptpsc.suivi_carte_tp ---
+        #
+        # Portée VOLONTAIREMENT plus large que l'upsert IEHE_KO ci-dessus : on
+        # enregistre TOUTES les cartes éligibles (`Eligibilité TP = O`), pas
+        # seulement celles dont la personne est absente d'IEHE, et surtout
+        # CARTES FUTURES COMPRISES.
+        #
+        # C'est tout l'objet de la table. Le `New_S` est un différentiel : deux
+        # flux consécutifs n'ont aucune personne en commun (vérifié sur les 10
+        # flux disponibles). Une carte éligible au 15 août révélée par le flux du
+        # 25 juillet n'est donc JAMAIS revue — si on ne la conserve pas ici, elle
+        # est perdue et ne sera jamais recherchée en GED le jour venu.
+        #
+        # `date_eligibilite` est calculée en `effet_minus_21` (cf.
+        # ELIGIBILITY_MODE_CARTE_TP), indépendamment du mode utilisé pour les CSV.
+        if suivi_carte_tp_db is not None and len(df_m) > 0:
+            try:
+                flux_date_tp = datetime.strptime(prefix, "%d%m%Y").date()
+            except ValueError:
+                flux_date_tp = date.today()
+
+            cartes_records: List[Dict[str, Any]] = []
+            nb_futures = 0
+            for rec in df_m.to_dict("records"):
+                type_assure_tp = str(rec.get(col_type, "") or "").strip() if col_type else ""
+                offre_tp = str(rec.get("NS_offre", "") or "").strip()
+                societe_tp = str(rec.get("NS_societe", "") or "").strip()
+                date_adh_tp = str(rec.get("NS_date_adh", "") or "").strip()
+                date_eff_tp = str(rec.get("NS_date_effet", "") or "").strip()
+
+                elig_on, elig_date, valeur_tp, _raison = compute_carte_tp_row(
+                    type_assure=type_assure_tp,
+                    offre=offre_tp,
+                    code_soc=societe_tp,
+                    date_effet_str=date_eff_tp,
+                    date_adh_str=date_adh_tp,
+                    eligibility_mode=ELIGIBILITY_MODE_CARTE_TP,
+                )
+                if elig_on != "O":
+                    continue
+                if str(valeur_tp).strip().upper().startswith("FUTUR"):
+                    nb_futures += 1
+
+                cartes_records.append({
+                    "num_personne": str(rec.get(col_pers, "") or "").strip(),
+                    "code_soc_appart": societe_tp,
+                    "offre": offre_tp,
+                    "type_assure": type_assure_tp,
+                    "date_adhesion": date_adh_tp,
+                    "date_effet_adhesion": date_eff_tp,
+                    "date_eligibilite": elig_date,
+                })
+
+            conn_cartes = suivi_carte_tp_db.connect_supervision()
+            if conn_cartes is not None:
+                try:
+                    if suivi_carte_tp_db.ensure_table(conn_cartes):
+                        nb_cartes = suivi_carte_tp_db.upsert_cartes(
+                            conn_cartes, prefix, flux_date_tp, cartes_records
+                        )
+                        print(f"   🗄️  Suivi BDD : {nb_cartes} carte(s) TP attendue(s) "
+                              f"enregistrée(s) dans {suivi_carte_tp_db.FQTN} "
+                              f"(flux {prefix}, dont {nb_futures} future(s) CONSERVÉE(S))")
+                finally:
+                    try:
+                        conn_cartes.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+            else:
+                print("   [WARN] Suivi cartes TP indisponible : la table "
+                      "suivi_carte_tp n'est pas alimentée pour ce flux.")
 
         # Colonnes de compatibilité du CSV — état AU MOMENT DU FLUX, jamais réécrit.
         # Elles restent obligatoires : 02_calcul_kpi.py ignore purement et simplement

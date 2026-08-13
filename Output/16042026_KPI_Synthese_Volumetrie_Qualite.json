@@ -1,0 +1,159 @@
+{
+    "Fichier_Principal": "16042026_New_S.csv",
+    "Prefixe_Execution": "16042026",
+    "Metadata": {
+        "Date_Execution": "2026-08-03 12:04:42",
+        "Script_Version": "5.1_KPI_Regroupes_Par_Nature_CIAM_IEHE_TP"
+    },
+    "Highlights": {
+        "definition": "Indicateurs de tête de gondole agrégeant les 3 référentiels (CIAM, IEHE, Carte TP) et le score data-quality global.",
+        "CIAM_Taux_Couverture": 99.99,
+        "CIAM_Rapproches": 43212,
+        "CIAM_Non_Rapproches": 4,
+        "IEHE_Taux_Presence": 100.0,
+        "IEHE_Manquants": 1,
+        "TP_Population_Base": 11365,
+        "TP_Taux_Eligible": 99.96,
+        "TP_Eligibles_Non_Rapproches_CIAM": 3,
+        "Score_Data_Quality_OK_Pct": 99.66,
+        "Score_Data_Quality_KO_Nombre": 146
+    },
+    "1_Input_Files": {
+        "definition": "Audit des fichiers chargés en entrée. CK = résultats requêtes KPEP ; CM = résultats requêtes Email ; Last/Middle = résultats requêtes Nom+Date/Prénom (sur non-rapprochés uniquement).",
+        "Details": {
+            "New_S": {
+                "Fichier": "16042026_New_S.csv (Pattern/Concat)",
+                "Lignes": 43519,
+                "Statut": "Chargé"
+            },
+            "IEHE": {
+                "Fichier": "16042026_IEHE.csv (Pattern/Concat)",
+                "Lignes": 43279,
+                "Statut": "Chargé"
+            },
+            "CK": {
+                "Fichier": "16042026_CK*.csv (Pattern/Concat)",
+                "Lignes": 43204,
+                "Statut": "Chargé"
+            },
+            "CM": {
+                "Fichier": "16042026_CM*.csv (Pattern/Concat)",
+                "Lignes": 43370,
+                "Statut": "Chargé"
+            },
+            "Last": {
+                "Fichier": "16042026_Last*.csv (Pattern/Concat)",
+                "Lignes": 14,
+                "Statut": "Chargé"
+            },
+            "Middle": {
+                "Fichier": "16042026_Middle*.csv (Pattern/Concat)",
+                "Lignes": 11,
+                "Statut": "Chargé"
+            }
+        }
+    },
+    "2_Volumetrie_Brute": {
+        "definition": "Comptage des lignes du fichier New_S. 1 ligne = 1 contrat. Une même personne peut avoir plusieurs lignes (multi-contrats).",
+        "Resultats": {
+            "Total_Lignes": 43519,
+            "Nbr_Assures_Brut": 43455,
+            "Nbr_Conjoints_Brut": 63
+        }
+    },
+    "3_Population_Unique": {
+        "definition": "Dédoublonnage sur num_personne. Population_Theorique_CIAM_Assures = cible du matching CIAM.",
+        "Global_Personnes": 43280,
+        "Cible_CIAM_Assures": 43216,
+        "Nbr_Contrats_Uniques": 43452,
+        "Conjoints_Uniques": 63
+    },
+    "4_Qualite_Donnees": {
+        "definition": "Analyse des doublons métier et anomalies de contrats dans New_S. (La cohérence des emails est désormais regroupée dans la section 5_CIAM.)",
+        "Indicateurs": {
+            "Assure_ET_Conjoint_Meme_ID": 0,
+            "Assures_En_Double_Lignes": 239,
+            "Conjoints_En_Double_Lignes": 0,
+            "Personnes_Plusieurs_KPEP": 0,
+            "Detail_KPEP": {
+                "2_kpep": {
+                    "total": 0,
+                    "dont_assures": 0
+                },
+                "3_kpep": {
+                    "total": 0,
+                    "dont_assures": 0
+                },
+                "plus_3_kpep": {
+                    "total": 0,
+                    "dont_assures": 0
+                }
+            },
+            "Doublons_Contrats_Meme_Offre": 136,
+            "Doublons_Contrats_Meme_Offre_Par_Type": {
+                "ASSPRI": 136
+            },
+            "Doublons_Contrats_Diff_Offre": 99,
+            "Doublons_Contrats_Diff_Offre_Par_Type": {
+                "ASSPRI": 99
+            }
+        }
+    },
+    "8_Autres_Indicateurs": {
+        "definition": "Indicateurs complémentaires ne relevant pas des catégories CIAM / IEHE / TP.",
+        "Prestations_Rejets_Plus_Anciens": {
+            "definition": "Pour chaque code origine et chaque boite de traitement, anciennete (en jours) du rejet le plus vieux observe sur la semaine de reference. Issu des requetes hebdo KPI5 (S_KPI5-*.sql) exportees par launch_SQL_query_V2.py dans output/SQL/<DDMMYYYY>/<HHMMSS>_Resultats_SQL.xlsx.",
+            "Statut": "Absent",
+            "Motif": "Repertoire output/SQL/ introuvable.",
+            "Par_Origine": {
+                "NMASS": {
+                    "Libelle": "NMASS",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "LUMAS": {
+                    "Libelle": "LUMAS — Luminess",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "OXA": {
+                    "Libelle": "OXA",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "TPCVM": {
+                    "Libelle": "TPCVM",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "TPHOS": {
+                    "Libelle": "TPHOS",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "TPVIA": {
+                    "Libelle": "TPVIA",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                },
+                "Autre": {
+                    "Libelle": "Autres origines (hors 6 listées)",
+                    "Nb_Boites": 0,
+                    "Anciennete_Max_Globale_Jours": null,
+                    "Par_Boite": {}
+                }
+            }
+        },
+        "Prestations_Par_Offre": {
+            "definition": "Quotidien J-1 + stock hebdo par offre. Source : output/SQL/<DDMMYYYY>/MDG_Prestations_par_offre_<HHMMSS>_Pivot.xlsx produit par launch_SQL_query_V2.py (post_process pivot_prestations_par_offre).",
+            "Statut": "Absent",
+            "Motif": "Repertoire output/SQL/ introuvable."
+        }
+    }
+}
